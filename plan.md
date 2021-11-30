@@ -10,6 +10,7 @@
 - [한국어 대화 요약](https://aihub.or.kr/aidata/30714)
 - [자유대화 음성(일반남녀)](https://aihub.or.kr/aidata/30703)
 - [한국어 SNS](https://aihub.or.kr/aidata/30718)
+- [멀티모달 영상](https://aihub.or.kr/aidata/137)
 
 # 모델
 - [byeongal/Ko-DialoGPT](https://huggingface.co/byeongal/Ko-DialoGPT) 파인튜닝해 사용.
