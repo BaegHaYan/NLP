@@ -7,7 +7,7 @@ import json
 import os
 
 def make_RowDataset():
-    pass
+    train = pd.DataFrame()
 
 def make_Dataset():
     pass
@@ -20,6 +20,8 @@ class Preprocesser:
         self.max_len = None
         # data
         self.data_num = None
+        # self.PREMODEL_NAME = "kakaobrain/kogpt"
+        # self.REVISION_NAME ='KoGPT6B-ryan1.5b-float16'
         self.PREMODEL_NAME = "byeongal/Ko-DialoGPT"
         # tokenizers
         self.tokenizer = GPT2TokenizerFast.from_pretrained("./tokenizer")
