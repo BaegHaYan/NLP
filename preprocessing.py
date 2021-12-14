@@ -14,13 +14,13 @@ def make_RowDataset():
     train = pd.DataFrame(columns=columns)
     val = pd.DataFrame(columns=columns)
 
-    def check_dataset(order: str):
-        assert order == "train" or order == "val"
-        if order == "train":
+    def check_dataset(order_dataset: str):
+        assert order_dataset == "train" or order_dataset == "val"
+        if order_dataset == "train":
             nonlocal train
             if train.iloc[-1].name >= 20000:
                 nonlocal train_file_num
-                train.to_csv(f"data/combined_raw_dataset/{order}/raw_data{train_file_num}.tsv", sep="\t", encoding="utf-8", index=False, na_rep="")
+                train.to_csv(f"data/combined_raw_dataset/{order_dataset}/raw_data{train_file_num}.tsv", sep="\t", encoding="utf-8", index=False, na_rep="NONE")
                 print(f"Train file raw_data{train_file_num} was saved.")
                 train_file_num += 1
                 train = pd.DataFrame(columns=columns)
@@ -28,7 +28,7 @@ def make_RowDataset():
             nonlocal val
             if val.iloc[-1].name >= 20000:
                 nonlocal val_file_num
-                val.to_csv(f"data/combined_raw_dataset/{order}/raw_data{val_file_num}.tsv", sep="\t", encoding="utf-8", index=False, na_rep="")
+                val.to_csv(f"data/combined_raw_dataset/{order_dataset}/raw_data{val_file_num}.tsv", sep="\t", encoding="utf-8", index=False, na_rep="NONE")
                 print(f"Validation file raw_data{val_file_num} was saved.")
                 val_file_num += 1
                 val = pd.DataFrame(columns=columns)
@@ -41,20 +41,133 @@ def make_RowDataset():
 
     # emotional
     for emotional_file_name in os.listdir("data/raw_dataset/감성대화"):
+        print("one of the emotinoal file start.")
         for conv in json.load(open("data/raw_dataset/감성대화/"+emotional_file_name, "r+", encoding="utf-8")):
             temp = []
             for sent in conv["talk"]["content"].values():
                 temp.append(sent)
 
             if "Training" in emotional_file_name:
-                train.append(pd.DataFrame([temp], columns=["S1", "R1", "S2", "R2", "S3", "R3"]), ignore_index=True)
+                train = train.append(pd.DataFrame([temp], columns=["S1", "R1", "S2", "R2", "S3", "R3"]), ignore_index=True)
                 check_dataset("train")
             else:
-                val.append(pd.DataFrame([temp], columns=["S1", "R1", "S2", "R2", "S3", "R3"]), ignore_index=True)
+                val = val.append(pd.DataFrame([temp], columns=["S1", "R1", "S2", "R2", "S3", "R3"]), ignore_index=True)
                 check_dataset("val")
     print("EmotionalData ended.")
 
+    # kcs
+    for order in ["Training", "Validation"]:
+        print("Korean Conversation Summary " + order + " start.")
+        for filename in os.listdir("./data/raw_dataset/한국어 대화 요약/"+order):
+            kcs_data = json.load(open("./data/raw_dataset/한국어 대화 요약/"+order+"/"+filename, "r+", encoding="utf-8"))["data"]
+            print(order+" "+filename+" file start.")
+            for conv in kcs_data:
+                turns = conv["header"]["dialogueInfo"]["numberOfTurns"]
+                if conv["header"]["dialogueInfo"]["numberOfParticipants"] != 2:
+                    continue
+                if turns % 2 == 1 or turns > 6:
+                    continue
 
+                temp = []
+                temp_sent = ""
+                pre_turnID = ""
+                for dialogue in conv["body"]["dialogue"]:
+                    if dialogue["turnID"] != pre_turnID and pre_turnID != "":
+                        temp.append(temp_sent)
+                        temp_sent = ""
+
+                    temp_sent += dialogue["utterance"] + " "
+                    pre_turnID = dialogue["turnID"]
+                temp.append(temp_sent)
+
+                temp_col = []
+                for i in range(int(turns/2)):
+                    temp_col.append(f"S{i+1}")
+                    temp_col.append(f"R{i+1}")
+
+                if order == "Training":
+                    train = train.append(pd.DataFrame([temp], columns=temp_col), ignore_index=True)
+                    check_dataset("train")
+                else:
+                    val = val.append(pd.DataFrame([temp], columns=temp_col), ignore_index=True)
+                    check_dataset("val")
+    print("KoreanConversationSummary ended.")
+
+    # korean SNS
+    for filename in os.listdir("./data/raw_dataset/한국어_SNS"):
+        try:
+            data = json.load(open("data/raw_dataset/한국어_SNS/"+filename, "r+", encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        print("start " + filename + "file.")
+        for conv in data["data"]:
+            turns = conv["header"]["dialogueInfo"]["numberOfTurns"]
+            if conv["header"]["dialogueInfo"]["numberOfParticipants"] != 2:
+                continue
+            if turns % 2 == 1 or turns > 6:
+                continue
+
+            temp = []
+            temp_sent = ""
+            pre_turnID = ""
+            for dialogue in conv["body"]:
+                if dialogue["turnID"] != pre_turnID and pre_turnID != "":
+                    temp.append(temp_sent)
+                    temp_sent = ""
+
+                temp_sent += dialogue["utterance"] + " "
+                pre_turnID = dialogue["turnID"]
+            temp.append(temp_sent)
+
+            temp_col = []
+            for i in range(int(turns / 2)):
+                temp_col.append(f"S{i + 1}")
+                temp_col.append(f"R{i + 1}")
+
+            if random.randint(1, 10) > 3:
+                train = train.append(pd.DataFrame([temp], columns=temp_col), ignore_index=True)
+                check_dataset("train")
+            else:
+                val = val.append(pd.DataFrame([temp], columns=temp_col), ignore_index=True)
+                check_dataset("val")
+
+    # multi modal
+    hist = [""]
+    print('start multimodal video dataset')
+    for fpath in os.listdir("./data/raw_dataset/멀티모달 영상"):
+        for fname in os.listdir("./data/raw_dataset/멀티모달 영상/" + fpath):
+            try:
+                temp_mm = json.load(open("./data/raw_dataset/멀티모달 영상/" + fpath + "/" + fname + "/" + fname + ".json", 'r+', encoding='utf-8'))
+            except UnicodeDecodeError:
+                temp_mm = json.load(open("./data/raw_dataset/멀티모달 영상/" + fpath + "/" + fname + "/" + fname + ".json", 'r+', encoding='949'))
+
+            temp = []
+            for conv in temp_mm['data'].values():  # repeat for all data in this file
+                for person in conv.keys():
+                    if 'text' not in conv[person].keys():  # find text data
+                        continue
+                    if conv[person]['text']['script'] == hist[-1]:  # skip duplicate sentence
+                        continue
+                    hist.append(conv[person]['text']['script'])
+                    temp.append(hist[-1])
+
+            temp_col = []
+            for i in range(int(len(temp)/2)):
+                temp_col.append(f"S{i+1}")
+                temp_col.append(f"R{i+1}")
+                temp_col.append(f"R{i+1}")
+            temp = temp[: 6] if len(temp_col) * 2 > 6 else temp[: len(temp_col)*2]
+            if random.randint(1, 10) > 3:
+                train = train.append(pd.DataFrame([temp], columns=temp_col), ignore_index=True)
+                check_dataset("train")
+            else:
+                val = val.append(pd.DataFrame([temp], columns=temp_col), ignore_index=True)
+                check_dataset("val")
+            print(f"multi_modal {fname[5:]} ended")
+
+    train.to_csv(f"data/combined_raw_dataset/train/raw_data{train_file_num}.tsv", sep="\t", encoding="utf-8", index=False, na_rep="NONE")
+    val.to_csv(f"data/combined_raw_dataset/val/raw_data{val_file_num}.tsv", sep="\t", encoding="utf-8", index=False, na_rep="NONE")
+    print("making dataset finished.")
 
 def make_Dataset():
     pass
