@@ -152,11 +152,12 @@ def make_RowDataset():
                     temp.append(hist[-1])
 
             temp_col = []
+            temp = temp[:6] if len(temp) > 6 else temp
             for i in range(int(len(temp)/2)):
                 temp_col.append(f"S{i+1}")
                 temp_col.append(f"R{i+1}")
-                temp_col.append(f"R{i+1}")
-            temp = temp[: 6] if len(temp_col) * 2 > 6 else temp[: len(temp_col)*2]
+            temp = temp[: len(temp_col)]
+
             if random.randint(1, 10) > 3:
                 train = train.append(pd.DataFrame([temp], columns=temp_col), ignore_index=True)
                 check_dataset("train")
