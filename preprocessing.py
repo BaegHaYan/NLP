@@ -1,5 +1,5 @@
 from transformers import GPT2TokenizerFast, BertTokenizerFast
-from typing import Sequence, Union
+from typing import Sequence
 import tensorflow as tf
 import pandas as pd
 import random
@@ -171,7 +171,33 @@ def make_RowDataset():
     print("making dataset finished.")
 
 def make_Dataset():
-    pass
+    tokenizer = GPT2TokenizerFast.from_pretrained("./tokenizer")
+
+    train = pd.DataFrame(columns=["dialogue", "response"])
+    for file_name in os.listdir("./data/combined_raw_dataset/train"):
+        data = pd.read_csv("./data/combined_raw_dataset/train/"+file_name, sep="\t", encoding="utf-8", header=0)
+        for _, conv in data.iterrows():
+            temp_d = ""
+            for i, value in enumerate(conv.values):
+                if i == 5 or conv.iloc[i+1] == "NONE":
+                    train = train.append(pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
+                    break
+                temp_d += value + tokenizer.bos_token
+    train.to_csv("./data/train.txt", sep="\t", encoding="utf-8", index=False)
+
+    val = pd.DataFrame(columns=["dialogue", "response"])
+    for file_name in os.listdir("./data/combined_raw_dataset/val"):
+        data = pd.read_csv("./data/combined_raw_dataset/val/"+file_name, sep="\t", encoding="utf-8", header=0)
+        for _, conv in data.iterrows():
+            temp_d = ""
+            for i, value in enumerate(conv.values):
+                if i == 5 or conv.iloc[i+1] == "NONE":
+                    val = val.append(pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
+                    break
+                temp_d += value + tokenizer.bos_token
+    val.to_csv("./data/val.txt", sep="\t", encoding="utf-8", index=False)
+
+
 
 class Preprocesser:
     def __init__(self):
@@ -192,7 +218,7 @@ class Preprocesser:
 
     def getTrainData(self) -> tf.data.Dataset:
         # data's dialogue : S1</s>S2</s> | response : R1</s>
-        trainData = pd.read_csv("data/train.txt", sep="\t", names=["dialogue", "response"])
+        trainData = pd.read_csv("data/train.txt", sep="\t", names=["dialogue", "response"], header=0)
 
         train_x = self.tokenizer.batch_encode_plus(trainData["dialogue"].to_list(), return_tensors="tf",
                                                    max_length=self.max_len, padding="max_length", truncation=True)
@@ -205,7 +231,7 @@ class Preprocesser:
         return tf.data.Dataset.from_tensor_slices((encoded_train_x, train_Y)).batch(self.batch_size).shuffle(256, seed=self.RANDOM_SEED)
 
     def getValidationData(self) -> tf.data.Dataset:
-        valData = pd.read_csv("data/val.txt", sep="\t", names=["dialogue", "response"])
+        valData = pd.read_csv("data/val.txt", sep="\t", names=["dialogue", "response"], header=0)
 
         val_x = self.tokenizer.batch_encode_plus(valData["dialogue"].to_list(), return_tensors="tf",
                                                  max_length=self.max_len, padding="max_length", truncation=True)
