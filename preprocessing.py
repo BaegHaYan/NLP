@@ -18,7 +18,7 @@ def make_RowDataset():
         assert order_dataset == "train" or order_dataset == "val"
         if order_dataset == "train":
             nonlocal train
-            if train.iloc[-1].name >= 20000:
+            if train.iloc[-1].name >= 50000:
                 nonlocal train_file_num
                 train.to_csv(f"data/combined_raw_dataset/{order_dataset}/raw_data{train_file_num}.tsv", sep="\t", encoding="utf-8", index=False, na_rep="NONE")
                 print(f"Train file raw_data{train_file_num} was saved.")
@@ -26,7 +26,7 @@ def make_RowDataset():
                 train = pd.DataFrame(columns=columns)
         else:
             nonlocal val
-            if val.iloc[-1].name >= 20000:
+            if val.iloc[-1].name >= 50000:
                 nonlocal val_file_num
                 val.to_csv(f"data/combined_raw_dataset/{order_dataset}/raw_data{val_file_num}.tsv", sep="\t", encoding="utf-8", index=False, na_rep="NONE")
                 print(f"Validation file raw_data{val_file_num} was saved.")
@@ -41,7 +41,7 @@ def make_RowDataset():
 
     # emotional
     for emotional_file_name in os.listdir("data/raw_dataset/감성대화"):
-        print("one of the emotinoal file start.")
+        print(emotional_file_name + " file start.")
         for conv in json.load(open("data/raw_dataset/감성대화/"+emotional_file_name, "r+", encoding="utf-8")):
             temp = []
             for sent in conv["talk"]["content"].values():
@@ -99,7 +99,7 @@ def make_RowDataset():
             data = json.load(open("data/raw_dataset/한국어_SNS/"+filename, "r+", encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        print("start " + filename + "file.")
+        print("start Korean SNS " + filename + "file.")
         for conv in data["data"]:
             turns = conv["header"]["dialogueInfo"]["numberOfTurns"]
             if conv["header"]["dialogueInfo"]["numberOfParticipants"] != 2:
