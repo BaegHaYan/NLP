@@ -1,4 +1,4 @@
-from transformers import GPT2TokenizerFast
+from transformers import GPT2TokenizerFast, BertTokenizerFast
 from typing import Sequence
 import tensorflow as tf
 import pandas as pd
@@ -23,8 +23,10 @@ class Preprocesser:
         # self.PREMODEL_NAME = "kakaobrain/kogpt"
         # self.REVISION_NAME ='KoGPT6B-ryan1.5b-float16'
         self.PREMODEL_NAME = "byeongal/Ko-DialoGPT"
+        self.COMPRESS_MODEL_NAME = "monologg/kobert"
         # tokenizers
         self.tokenizer = GPT2TokenizerFast.from_pretrained("./tokenizer")
+        self.compress_tokenizer = BertTokenizerFast.from_pretrained(self.COMPRESS_MODEL_NAME)
         self.vocab_size = self.tokenizer.vocab_size
 
     def getTrainData(self) -> tf.data.Dataset:
