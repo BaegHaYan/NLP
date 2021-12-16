@@ -40,18 +40,18 @@ if __name__ == "__main__":
         pos += 1
         model.compile(loss=loss, optimizer=optim, metrics="accuracy")
         hist = model.fit(p.getTrainData(), validation_data=p.getValidationData(), batch_size=p.batch_size, epochs=epochs,
-                         callbacks=[EarlyStopping(patience=3), LearningRateScheduler(lr_scheduler),
+                         callbacks=[EarlyStopping(monitor='val_loss', mode="min", patience=5), LearningRateScheduler(lr_scheduler),
                                     ModelCheckpoint("./model/"+optim+"_model", monitor="val_accuracy", save_best_only=True)])
 
-        plt.plot(range(1, epochs + 1), hist.history["loss"], "r", label="loss")
-        plt.plot(range(1, epochs + 1), hist.history["accuracy"], "b", label="accuracy")
-        plt.plot(range(1, epochs + 1), hist.history["val_loss"], "g", label="val_loss")
-        plt.plot(range(1, epochs + 1), hist.history["val_accuracy"], "k", label="val_accuracy")
+        plt.plot(range(1, len(hist.history["loss"])+11), hist.history["loss"], "r", label="loss")
+        plt.plot(range(1, len(hist.history["loss"])+1), hist.history["accuracy"], "b", label="accuracy")
+        plt.plot(range(1, len(hist.history["loss"])+1), hist.history["val_loss"], "g", label="val_loss")
+        plt.plot(range(1, len(hist.history["loss"])+1), hist.history["val_accuracy"], "k", label="val_accuracy")
         plt.title(optim)
         plt.text(5, 3, str(max(hist.history["val_accuracy"])))
         plt.xlabel("epoch")
         plt.ylabel("loss/accuracy")
-        plt.xticks(range(1, epochs + 1))
-        plt.xlim(0.9, epochs + 0.1)
+        plt.xticks(range(1, len(hist.history["loss"])+1))
+        plt.xlim(0.9, len(hist.history["loss"])+0.1)
         plt.legend()
     plt.savefig("./history.png")
