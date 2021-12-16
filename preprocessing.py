@@ -199,7 +199,6 @@ def make_Dataset():
     val.to_csv("./data/val.txt", sep="\t", encoding="utf-8", index=False)
 
 
-
 class Preprocesser:
     def __init__(self):
         self.RANDOM_SEED = 10
@@ -249,7 +248,3 @@ class Preprocesser:
 
     def decoding(self, ids: Sequence[int]) -> str:
         return self.tokenizer.decode(ids, skip_special_tokens=True)
-
-
-
-
