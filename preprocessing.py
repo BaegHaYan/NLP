@@ -178,10 +178,12 @@ def make_Dataset():
         data = pd.read_csv("./data/encoded_dataset/train/"+file_name, sep="\t", encoding="utf-8", header=0)
         for _, conv in data.iterrows():
             temp_d = ""
-            for i, value in enumerate(conv.values):
-                if i == 5 or conv.iloc[i+1] == "NONE":
+            for i, (key, value) in enumerate(conv.items()):
+                if conv.iloc[i+1] == "NONE":
                     train = train.append(pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
                     break
+                if key[0] == "R":
+                    train = train.append(pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
                 # TODO 돌아온 데이터의 상태를 보고, 정규표현식으로 걸러주거나 나눠져 있으면 합치는 등의 조작 필요
                 temp_d += value.strip() + tokenizer.bos_token
     train.to_csv("./data/train.txt", sep="\t", encoding="utf-8", index=False)
@@ -191,11 +193,16 @@ def make_Dataset():
         data = pd.read_csv("./data/combined_raw_dataset/val/"+file_name, sep="\t", encoding="utf-8", header=0)
         for _, conv in data.iterrows():
             temp_d = ""
-            for i, value in enumerate(conv.values):
-                if i == 5 or conv.iloc[i+1] == "NONE":
-                    val = val.append(pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
+            for i, (key, value) in enumerate(conv.items()):
+                if conv.iloc[i + 1] == "NONE":
+                    val = val.append(
+                        pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
                     break
-                temp_d += value + tokenizer.bos_token
+                if key[0] == "R":
+                    val = val.append(
+                        pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
+                # TODO 돌아온 데이터의 상태를 보고, 정규표현식으로 걸러주거나 나눠져 있으면 합치는 등의 조작 필요
+                temp_d += value.strip() + tokenizer.bos_token
     val.to_csv("./data/val.txt", sep="\t", encoding="utf-8", index=False)
 
 
