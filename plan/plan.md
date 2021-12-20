@@ -15,14 +15,14 @@
 - 특별 토큰은 차례대로 `"[HAPPY]", "[PANIC]", "[ANGRY]", "[UNSTABLE]", "[HURT]", "[SAD]", "[NEUTRAL]"`.
 - 각 데이터를 S1<s>S2<s>, R1</s> 형태로 바꿈(<s> - bos_token, </s> - eos_token) | S1<s>S2<s> or S1<s>S2</s>
 - 각 데이터를 columns=["S1", "R1", "S2", "R3", "S3", "R3"]의 형태로 만들어 데이터셋 제작중에 합침
-- 원래 나온 데이터는 45만개정도였고, SNS데이터를 거의 제거해 35만개가 되었으며, 수작업의 한계탓에 5만개 정도로 줄것이라 예상되어,
-  R마다 데이터를 저장하는 방식으로 교체하였음.
+- 원래 나온 데이터는 45만개정도였고, SNS데이터를 거의 제거해 35만개가 되었으며, 수작업의 한계탓에 5만개 정도로 줄것이라 예상되어, R마다 데이터를 저장하는 방식으로 교체함.
 - 추가로 특정 토큰을 가진 질문에 특정 단어가 답변에 많이 포함되게 유도함.
 - 질문쪽 각 데이터를 정규화?
 
 # 모델
 - [byeongal/Ko-DialoGPT](https://huggingface.co/byeongal/Ko-DialoGPT) 를 파인튜닝해 사용 -> [cc-by-nc-sa-4.0] License(non-commercial)
 - [kakaobrain/kogpt](https://huggingface.co/kakaobrain/kogpt) 으로의 변경도 고려. -> 데이터가 많으면 kogpt, 아니면 dialoGPT. -> 일단 둘다 코드는 짜둠.
+- 캐릭터모델에 필요한 캐릭터 페르소나 탐지기/대화체 변화 모델/대화주제탐지기+대화 씬 탐지모델/프롬프트 인코더 등은 시간과 관련 지식의 부족으로 추후 구현하기로 함.
 - 토크나이저 파일을 모두 가져와 특별 토큰들을 추가해 토크나이저로 사용.
 - use_cache 사용? -> 쓴다고 해도 init(+preprocessing의 토크나이저)에서만 사용하면 될듯. 
 
