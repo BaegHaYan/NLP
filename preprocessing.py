@@ -175,15 +175,12 @@ def make_Dataset():
 
     train = pd.DataFrame(columns=["dialogue", "response"])
     for file_name in os.listdir("./data/encoded_dataset/train"):
-        try:
-            data = pd.read_csv("./data/encoded_dataset/train/"+file_name, sep="\t", encoding="utf-8", header=0)
-        except UnicodeDecodeError:
-            data = pd.read_csv("./data/encoded_dataset/train/"+file_name, sep="\t", encoding="949", header=0)
+        data = pd.read_csv("./data/encoded_dataset/train/"+file_name, sep="\t", encoding="949", header=0)
 
         for _, conv in data.iterrows():
             temp_d = ""
             for i, (key, value) in enumerate(conv.items()):
-                if conv.iloc[i+1] == "NONE":
+                if i == 5 or conv.iloc[i+1] == "NONE":
                     train = train.append(pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
                     break
                 if key[0] == "R":
@@ -193,16 +190,13 @@ def make_Dataset():
     train.to_csv("./data/train.txt", sep="\t", encoding="utf-8", index=False)
 
     val = pd.DataFrame(columns=["dialogue", "response"])
-    for file_name in os.listdir("./data/combined_raw_dataset/val"):
-        try:
-            data = pd.read_csv("./data/combined_raw_dataset/val/"+file_name, sep="\t", encoding="utf-8", header=0)
-        except UnicodeDecodeError:
-            data = pd.read_csv("./data/combined_raw_dataset/val/"+file_name, sep="\t", encoding="949", header=0)
+    for file_name in os.listdir("./data/encoded_dataset/val"):
+        data = pd.read_csv("./data/encoded_dataset/val/"+file_name, sep="\t", encoding="949", header=0)
 
         for _, conv in data.iterrows():
             temp_d = ""
             for i, (key, value) in enumerate(conv.items()):
-                if conv.iloc[i + 1] == "NONE":
+                if i == 5 or conv.iloc[i + 1] == "NONE":
                     val = val.append(
                         pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
                     break
@@ -262,3 +256,5 @@ class Preprocesser:
 
     def decoding(self, ids: Sequence[int]) -> str:
         return self.tokenizer.decode(ids, skip_special_tokens=True)
+
+make_Dataset()
