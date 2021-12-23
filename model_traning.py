@@ -23,9 +23,6 @@ class DialoGPT(tf.keras.Model):
         output = self.koDialoGPT(inputs, return_dict=True)
         return output.logits
 
-    def get_config(self):
-        return self.koDialoGPT.config
-
 
 if __name__ == "__main__":
     p = Preprocesser()
