@@ -175,7 +175,11 @@ def make_Dataset():
 
     train = pd.DataFrame(columns=["dialogue", "response"])
     for file_name in os.listdir("./data/encoded_dataset/train"):
-        data = pd.read_csv("./data/encoded_dataset/train/"+file_name, sep="\t", encoding="utf-8", header=0)
+        try:
+            data = pd.read_csv("./data/encoded_dataset/train/"+file_name, sep="\t", encoding="utf-8", header=0)
+        except UnicodeDecodeError:
+            data = pd.read_csv("./data/encoded_dataset/train/"+file_name, sep="\t", encoding="949", header=0)
+
         for _, conv in data.iterrows():
             temp_d = ""
             for i, (key, value) in enumerate(conv.items()):
@@ -184,13 +188,17 @@ def make_Dataset():
                     break
                 if key[0] == "R":
                     train = train.append(pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
-                # TODO 돌아온 데이터의 상태를 보고, 정규표현식으로 걸러주거나 나눠져 있으면 합치는 등의 조작 필요
+
                 temp_d += value.strip() + tokenizer.bos_token
     train.to_csv("./data/train.txt", sep="\t", encoding="utf-8", index=False)
 
     val = pd.DataFrame(columns=["dialogue", "response"])
     for file_name in os.listdir("./data/combined_raw_dataset/val"):
-        data = pd.read_csv("./data/combined_raw_dataset/val/"+file_name, sep="\t", encoding="utf-8", header=0)
+        try:
+            data = pd.read_csv("./data/combined_raw_dataset/val/"+file_name, sep="\t", encoding="utf-8", header=0)
+        except UnicodeDecodeError:
+            data = pd.read_csv("./data/combined_raw_dataset/val/"+file_name, sep="\t", encoding="949", header=0)
+
         for _, conv in data.iterrows():
             temp_d = ""
             for i, (key, value) in enumerate(conv.items()):
@@ -201,10 +209,9 @@ def make_Dataset():
                 if key[0] == "R":
                     val = val.append(
                         pd.DataFrame([[temp_d, value + tokenizer.eos_token]], columns=["dialogue", "response"]))
-                # TODO 돌아온 데이터의 상태를 보고, 정규표현식으로 걸러주거나 나눠져 있으면 합치는 등의 조작 필요
+
                 temp_d += value.strip() + tokenizer.bos_token
     val.to_csv("./data/val.txt", sep="\t", encoding="utf-8", index=False)
-
 
 class Preprocesser:
     def __init__(self):

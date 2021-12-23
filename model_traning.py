@@ -37,21 +37,22 @@ if __name__ == "__main__":
 
     for optim in ["adam", "rmsprop", "nadam"]:
         plt.subplot(3, 1, pos)
+        plt.figure(figsize=(50, 50))
         pos += 1
         model.compile(loss=loss, optimizer=optim, metrics="accuracy")
         hist = model.fit(p.getTrainData(), validation_data=p.getValidationData(), batch_size=p.batch_size, epochs=epochs,
                          callbacks=[EarlyStopping(monitor='val_loss', mode="min", patience=5), LearningRateScheduler(lr_scheduler),
-                                    ModelCheckpoint("./model/"+optim+"_model", monitor="val_accuracy", save_best_only=True)])
+                                    ModelCheckpoint("./model/"+optim+"_model", monitor="val_accuracy", save_best_only=True)])  # tf_model.h5
 
-        plt.plot(range(1, len(hist.history["loss"])+11), hist.history["loss"], "r", label="loss")
+        plt.plot(range(1, len(hist.history["loss"])+1), hist.history["loss"], "r", label="loss")
         plt.plot(range(1, len(hist.history["loss"])+1), hist.history["accuracy"], "b", label="accuracy")
         plt.plot(range(1, len(hist.history["loss"])+1), hist.history["val_loss"], "g", label="val_loss")
         plt.plot(range(1, len(hist.history["loss"])+1), hist.history["val_accuracy"], "k", label="val_accuracy")
         plt.title(optim)
-        plt.text(5, 3, str(max(hist.history["val_accuracy"])))
+        plt.text(1, 3, "max val_acc : %.1f" % max(hist.history["val_accuracy"]))
         plt.xlabel("epoch")
         plt.ylabel("loss/accuracy")
         plt.xticks(range(1, len(hist.history["loss"])+1))
         plt.xlim(0.9, len(hist.history["loss"])+0.1)
-        plt.legend()
+    plt.legend()
     plt.savefig("./history.png")
