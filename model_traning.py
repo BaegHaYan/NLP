@@ -1,8 +1,10 @@
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, LearningRateScheduler
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, LearningRateScheduler, TensorBoard
 from transformers import TFGPT2LMHeadModel
 from preprocessing import Preprocesser
 import matplotlib.pyplot as plt
 import tensorflow as tf
+import datetime
+import os
 
 def lr_scheduler(epoch, lr):
     if epoch < 2:
@@ -31,6 +33,7 @@ if __name__ == "__main__":
     pos = 1
     model = DialoGPT()
     loss = tf.keras.losses.SparseCategoricalCrossentropy()
+    log_dir = os.path.join('./logs', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
 
     for optim in ["adam", "rmsprop", "nadam"]:
         plt.subplot(3, 1, pos)
@@ -39,7 +42,8 @@ if __name__ == "__main__":
         model.compile(loss=loss, optimizer=optim, metrics="accuracy")
         hist = model.fit(p.getTrainData(), validation_data=p.getValidationData(), batch_size=p.batch_size, epochs=epochs,
                          callbacks=[EarlyStopping(monitor='val_loss', mode="min", patience=5), LearningRateScheduler(lr_scheduler),
-                                    ModelCheckpoint("./model/"+optim+"_model", monitor="val_accuracy", save_best_only=True)])  # tf_model.h5
+                                    ModelCheckpoint("./model/"+optim+"_model", monitor="val_accuracy", save_best_only=True),  # have to tf_model.h5
+                                    TensorBoard(log_dir=log_dir, write_graph=True, write_images=True, histogram_freq=1)])
 
         plt.plot(range(1, len(hist.history["loss"])+1), hist.history["loss"], "r", label="loss")
         plt.plot(range(1, len(hist.history["loss"])+1), hist.history["accuracy"], "b", label="accuracy")
