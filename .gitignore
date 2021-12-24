@@ -1,3 +1,4 @@
 # data folder
 data
-
+# tensorboard logs
+logs
