@@ -37,13 +37,13 @@ if __name__ == "__main__":
 
     for optim in ["adam", "rmsprop", "nadam"]:
         plt.subplot(3, 1, pos)
-        plt.figure(figsize=(50, 50))
+        plt.figure(figsize=(5, 5))
+        p.batch_size = 8
         pos += 1
         model.compile(loss=loss, optimizer=optim, metrics="accuracy")
         hist = model.fit(p.getTrainData(), validation_data=p.getValidationData(), batch_size=p.batch_size, epochs=epochs,
                          callbacks=[EarlyStopping(monitor='val_loss', mode="min", patience=5), LearningRateScheduler(lr_scheduler),
-                                    ModelCheckpoint("./model/"+optim+"_model", monitor="val_accuracy", save_best_only=True),  # have to tf_model.h5
-                                    TensorBoard(log_dir=log_dir, write_graph=True, write_images=True, histogram_freq=1)])
+                                    ModelCheckpoint("./model/"+optim+"_model", monitor="val_accuracy", save_best_only=True)])  # have to tf_model.h5
 
         plt.plot(range(1, len(hist.history["loss"])+1), hist.history["loss"], "r", label="loss")
         plt.plot(range(1, len(hist.history["loss"])+1), hist.history["accuracy"], "b", label="accuracy")
