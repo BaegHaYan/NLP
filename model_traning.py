@@ -1,10 +1,7 @@
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, LearningRateScheduler, TensorBoard
 from transformers import TFGPT2LMHeadModel
 from preprocessing import Preprocesser
-import matplotlib.pyplot as plt
 import tensorflow as tf
-import datetime
-import os
 
 def lr_scheduler(epoch, lr):
     if epoch < 2:
@@ -30,30 +27,17 @@ if __name__ == "__main__":
     p = Preprocesser()
     epochs = 5
 
-    pos = 1
     model = DialoGPT()
     loss = tf.keras.losses.SparseCategoricalCrossentropy()
-    log_dir = os.path.join('./logs', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-
+    history = ""
     for optim in ["adam", "rmsprop", "nadam"]:
-        plt.subplot(3, 1, pos)
-        plt.figure(figsize=(5, 5))
-        p.batch_size = 8
-        pos += 1
         model.compile(loss=loss, optimizer=optim, metrics="accuracy")
         hist = model.fit(p.getTrainData(), validation_data=p.getValidationData(), batch_size=p.batch_size, epochs=epochs,
                          callbacks=[EarlyStopping(monitor='val_loss', mode="min", patience=5), LearningRateScheduler(lr_scheduler),
                                     ModelCheckpoint("./model/"+optim+"_model", monitor="val_accuracy", save_best_only=True)])  # have to tf_model.h5
+        hist += optim+"\n"
+        for key, item in hist.items():
+            hist += key + " : " + str(["%.1f" % figure for figure in item]) + "\n"
+        hist += "\n"
+    open("./model/history.txt", "w+", encoding="utf-8").write(history)
 
-        plt.plot(range(1, len(hist.history["loss"])+1), hist.history["loss"], "r", label="loss")
-        plt.plot(range(1, len(hist.history["loss"])+1), hist.history["accuracy"], "b", label="accuracy")
-        plt.plot(range(1, len(hist.history["loss"])+1), hist.history["val_loss"], "g", label="val_loss")
-        plt.plot(range(1, len(hist.history["loss"])+1), hist.history["val_accuracy"], "k", label="val_accuracy")
-        plt.title(optim)
-        plt.text(1, 3, "max val_acc : %.1f" % max(hist.history["val_accuracy"]))
-        plt.xlabel("epoch")
-        plt.ylabel("loss/accuracy")
-        plt.xticks(range(1, len(hist.history["loss"])+1))
-        plt.xlim(0.9, len(hist.history["loss"])+0.1)
-    plt.legend()
-    plt.savefig("./history.png")
