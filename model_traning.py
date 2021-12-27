@@ -37,7 +37,7 @@ if __name__ == "__main__":
                                     ModelCheckpoint("./model/"+optim+"_model", monitor="val_accuracy", save_best_only=True)])  # have to tf_model.h5
         history += optim+"\n"
         for key, item in hist.history.items():
-            history += key + " : " + str(["%.3f" % figure for figure in item]) + "\n"
+            history += key + " : " + str(["%.4f" % figure for figure in item]) + "\n"
         history += "\n"
     open("./model/history.txt", "w+", encoding="utf-8").write(history)
 
