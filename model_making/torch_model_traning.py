@@ -5,7 +5,9 @@ import torch
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     torch.device(device)
+    p = Preprocesser()
     print(f'Using {device} device')
+
 
     def Perplexity(predict: torch.Tensor) -> float:
         # torch.Size([16, 201, 51200]), torch.Size([16, 201])
@@ -15,14 +17,13 @@ if __name__ == "__main__":
         for sent, sent2 in zip(predict, torch.argmax(predict, dim=-1)):
             for tensor, idx in zip(sent, sent2):
                 perplexed += tensor[idx].item()
-        return (1/perplexed) ** (1/size)
+        return (1 / perplexed) ** (1 / size)
 
 
     class koDialoGPT(torch.nn.Module):
         def __init__(self):
             super(koDialoGPT, self).__init__()
-            self.p = Preprocesser()
-            self.model = GPT2LMHeadModel.from_pretrained(self.p.PREMODEL_NAME)
+            self.model = GPT2LMHeadModel.from_pretrained(p.PREMODEL_NAME)
 
         def forward(self, x):
             input_ids, attention_mask = x
@@ -39,16 +40,17 @@ if __name__ == "__main__":
             pred = t_model((input_ids.to(device), attention_mask.to(device)))
             pred = pred.to(device)
             loss_ = loss_fn(pred.transpose(2, 1).float(), y.long())
-            correct += Perplexity(pred.to('cpu'))
+            correct = Perplexity(pred.to('cpu'))
 
             optimizer.zero_grad()
             loss_.backward(gradient=loss_)
             optimizer.step()
 
-            if batch % 100 == 0:
-                loss_, current = loss_.sum(), batch * len(input_ids)
-                print(f"loss: {loss_:>7f}  PPL: {correct/batch:>0.1f} [{current:>5d}/{size:>5d}]")
-        return f"{loss_:>7f}", f"{correct / size :>0.1f})"
+            if batch % 10 == 0:
+                loss_ = loss_.sum() / loss_.size()[-1]
+                print(f"loss: {loss_:>7f}  PPL: {correct:>0.3f} [{batch:>5d}/{len(dataloader):>5d}]")
+        return f"{loss_:>7f}", f"{correct :>0.3f})"
+
 
     def val_loop(dataloader, t_model, loss_fn):
         size = len(dataloader.dataset)
@@ -58,25 +60,28 @@ if __name__ == "__main__":
         with torch.no_grad():
             for input_ids, attention_mask, y in dataloader:
                 y = y.to(device)
-                pred = t_model(input_ids.to(device), attention_mask.to(device))
+                pred = t_model((input_ids.to(device), attention_mask.to(device)))
                 pred = pred.to(device)
-                test_loss += loss_fn(pred.transpose(2, 1).float(), y.long()).item()
+                temp_loss = loss_fn(pred.transpose(2, 1).float(), y.long())
+                test_loss += temp_loss.sum() / temp_loss.size()[-1]
                 correct += Perplexity(pred.to('cpu'))
 
         test_loss /= num_batches
         correct /= size
-        print(f"Validation : loss: {test_loss:>7f}  PPL: {correct:>0.1f}")
-        return f"{loss:>7f}", f"{correct:>0.1f})"
+        print(f"Validation : loss: {test_loss:>7f}  PPL: {correct:>0.3f}")
+        return f"{test_loss:>7f}", f"{correct:>0.3f})"
 
 
     lr = 5e-5
     epochs = 5
     lowest_loss = 9999
-    model = koDialoGPT().to(device)
-    loss_func = torch.nn.CrossEntropyLoss(reduction='none')
-
+    lowest_val_loss = 9999
+    loss_func = torch.nn.CrossEntropyLoss(reduction='none', ignore_index=p.tokenizer.pad_token_id)  # pad_token == 3
     history = ""
-    for optim in [torch.optim.Adam(model.parameters(), lr=lr), torch.optim.RMSprop(model.parameters(), lr=lr)]:
+    for optim_order in [torch.optim.Adam, torch.optim.RMSprop]:
+        model = koDialoGPT().to(device)
+        optim = optim_order(model.parameters(), lr=lr)
+
         print(f"{str(optim).split()[0]} Start.")
         history += str(optim).split()[0] + "\n"
         history_list = {"loss": list(), "ppl": list(), "val_loss": list(), "val_ppl": list()}
@@ -88,9 +93,16 @@ if __name__ == "__main__":
             val_loss, val_ppl = val_loop(model.p.getTorchValidationData(), model, loss_func)
             scheduler.step()
 
-            if float(val_loss) < lowest_loss:
-                torch.save(model, "../model/torch_models/best_model.pt")
-                torch.save(model, "../model/torch_models/pytorch_model.bin")
+            if float(val_loss) < lowest_val_loss:
+                torch.save(model, "../model/torch_models/val_loss/best_model.pt")
+                torch.save(model, "../model/torch_models/val_loss/pytorch_model.bin")
+                lowest_val_loss = float(val_loss)
+                print("Model Saved(val_loss)")
+            if float(loss) < lowest_loss:
+                torch.save(model, "../model/torch_models/loss/best_model.pt")
+                torch.save(model, "../model/torch_models/loss/pytorch_model.bin")
+                lowest_loss = float(loss)
+                print("Model Saved(loss)")
 
             history_list["loss"].append(loss)
             history_list["ppl"].append(ppl)
