@@ -89,18 +89,18 @@ if __name__ == "__main__":
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optim, milestones=[2, 4], gamma=0.5)
         for t in range(epochs):
             print(f"Epoch {t + 1}\n-------------------------------")
-            loss, ppl = train_loop(model.p.getTorchTrainData(), model, loss_func, optim)
-            val_loss, val_ppl = val_loop(model.p.getTorchValidationData(), model, loss_func)
+            loss, ppl = train_loop(p.getTorchTrainData(), model, loss_func, optim)
+            val_loss, val_ppl = val_loop(p.getTorchValidationData(), model, loss_func)
             scheduler.step()
 
             if float(val_loss) < lowest_val_loss:
-                torch.save(model, "../model/torch_models/val_loss/best_model.pt")
-                torch.save(model, "../model/torch_models/val_loss/pytorch_model.bin")
+                torch.save(model, "../model/torch_models/val_loss/valLoss_model.bin")
+                torch.save(model.state_dict(), "../model/torch_models/val_loss/pytorch_model.bin")
                 lowest_val_loss = float(val_loss)
                 print("Model Saved(val_loss)")
             if float(loss) < lowest_loss:
-                torch.save(model, "../model/torch_models/loss/best_model.pt")
-                torch.save(model, "../model/torch_models/loss/pytorch_model.bin")
+                torch.save(model, "../model/torch_models/loss/loss_model.bin")
+                torch.save(model.state_dict(), "../model/torch_models/loss/pytorch_model.bin")
                 lowest_loss = float(loss)
                 print("Model Saved(loss)")
 

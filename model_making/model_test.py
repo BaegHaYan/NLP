@@ -1,4 +1,4 @@
-from transformers import TFGPT2LMHeadModel
+from transformers import GPT2LMHeadModel
 from preprocessing import Preprocesser
 import argparse
 
@@ -7,7 +7,7 @@ parser.add_argument("-o", "--once", type=bool, default=False, metavar="Bool", de
 
 if __name__ == "__main__":
     p = Preprocesser()
-    model = TFGPT2LMHeadModel.from_pretrained("../model/hf_form")
+    model = GPT2LMHeadModel.from_pretrained("../model/hf_form")
 
     if parser.parse_args().is_once:
         parser.add_argument('-text', '--text', type=str, default=input("User >>"), metavar='str', dest="text")
