@@ -94,13 +94,14 @@ if __name__ == "__main__":
             scheduler.step()
 
             if float(val_loss) < lowest_val_loss:
-                torch.save(model, "../model/torch_models/val_loss/valLoss_model.bin")
-                torch.save(model.state_dict(), "../model/torch_models/val_loss/pytorch_model.bin")
+                torch.save(model, f"../model/torch_models/{str(optim).split()[0]}/val_loss/valLoss_model.bin")
+                torch.save(model.state_dict(),
+                           f"../model/torch_models/{str(optim).split()[0]}/val_loss/pytorch_model.bin")
                 lowest_val_loss = float(val_loss)
                 print("Model Saved(val_loss)")
             if float(loss) < lowest_loss:
-                torch.save(model, "../model/torch_models/loss/loss_model.bin")
-                torch.save(model.state_dict(), "../model/torch_models/loss/pytorch_model.bin")
+                torch.save(model, f"../model/torch_models/{str(optim).split()[0]}/loss/loss_model.bin")
+                torch.save(model.state_dict(), f"../model/torch_models/{str(optim).split()[0]}/loss/pytorch_model.bin")
                 lowest_loss = float(loss)
                 print("Model Saved(loss)")
 

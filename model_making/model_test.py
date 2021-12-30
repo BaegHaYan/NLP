@@ -1,13 +1,16 @@
 from transformers import GPT2LMHeadModel
 from preprocessing import Preprocesser
 import argparse
+import torch
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-o", "--once", type=bool, default=False, metavar="Bool", dest="is_once")
 
 if __name__ == "__main__":
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     p = Preprocesser()
-    model = GPT2LMHeadModel.from_pretrained("../model/hf_form")
+    model = GPT2LMHeadModel.from_pretrained("../model/hf_form").to(device)
 
     if parser.parse_args().is_once:
         parser.add_argument('-text', '--text', type=str, default=input("User >>"), metavar='str', dest="text")
@@ -44,5 +47,3 @@ if __name__ == "__main__":
 
             print("HaYan >> " + bot_output)
             turn_text = input("User >> ")
-
-
