@@ -16,7 +16,7 @@ if __name__ == "__main__":
         parser.add_argument('-text', '--text', type=str, default=input("User >>"), metavar='str', dest="text")
         text = parser.parse_args().text
 
-        output = model.generate(p.encoding(text),
+        output = model.generate(p.encoding(text).to(device),
                                 max_length=1000,
                                 num_beams=5,
                                 top_k=20,
@@ -35,14 +35,14 @@ if __name__ == "__main__":
             if len(input_text.split(p.tokenizer.eos_token)) > 5:
                 input_text = p.tokenizer.bos_token + f"{p.tokenizer.eos_token}".join(input_text.split(p.tokenizer.eos_token)[2:]) + p.tokenizer.eos_token
 
-            output = model.generate(p.encoding(input_text),
+            output = model.generate(p.encoding(input_text).to(device),
                                     max_length=1000,
                                     num_beams=5,
                                     top_k=20,
                                     no_repeat_ngram_size=4,
                                     length_penalty=0.65,
                                     repetition_penalty=2.)
-            bot_output = p.decoding(output)
+            bot_output = p.decoding(output[0])
             input_text += bot_output + p.tokenizer.eos_token
 
             print("HaYan >> " + bot_output)
