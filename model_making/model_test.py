@@ -1,5 +1,5 @@
 from transformers import GPT2LMHeadModel
-from preprocessing import Preprocesser
+from HaYan_NLP.preprocessing import Preprocesser
 import argparse
 import torch
 
