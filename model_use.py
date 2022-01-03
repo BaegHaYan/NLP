@@ -25,10 +25,5 @@ def use_chat_model(user_text: str, past_convs: List[str]) -> str:
                                           no_repeat_ngram_size=4,
                                           length_penalty=0.65,
                                           repetition_penalty=2.)
-    numpy_output = output.numpy()
-    numpy_output = np.where(numpy_output == 25856, 389, numpy_output)
-    numpy_output = np.where(numpy_output == 7098, 8142, numpy_output)
-    numpy_output = np.where(numpy_output == 25830, 5, numpy_output)
-    output = torch.from_numpy(numpy_output)
 
     return __init__.p.decoding(output[0][user_text.shape[-1]:])
