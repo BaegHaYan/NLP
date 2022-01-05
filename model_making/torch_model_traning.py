@@ -1,118 +1,187 @@
-from transformers import GPT2LMHeadModel
-from preprocessing import Preprocesser
+import argparse
+import logging
+import numpy as np
+import pandas as pd
 import torch
+from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.core.lightning import LightningModule
+from torch.utils.data import DataLoader, Dataset
+from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
+from transformers import PreTrainedTokenizerFast, GPT2LMHeadModel
+
+TOKENIZER = PreTrainedTokenizerFast.from_pretrained("../tokenizer", bos_token='<s>', eos_token='</s>')
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--train',
+                    action='store_true',
+                    default=True,
+                    help='for training')
+parser.add_argument('--chat',
+                    action='store_true',
+                    default=False,
+                    help='response generation on given user input')
+parser.add_argument('--model_params',
+                    type=str,
+                    default='../torch_models/model_chp',
+                    help='model binary for starting chat')
+
+def add_model_specific_args(parent_parser):
+    # add model specific args
+    parser = argparse.ArgumentParser(parents=[parent_parser], add_help=False)
+    parser.add_argument('--max-len',
+                        type=int,
+                        default=201,
+                        help='max sentence length on input (default: 201)')
+    parser.add_argument('--batch-size',
+                        type=int,
+                        default=16,
+                        help='batch size for training (default: 16)')
+    parser.add_argument('--lr',
+                        type=float,
+                        default=3e-5,
+                        help='The initial learning rate')
+    parser.add_argument('--warmup_ratio',
+                        type=float,
+                        default=0.1,
+                        help='warmup ratio')
+    return parser
+
+
+class dataset(Dataset):
+    def __init__(self, chats: pd.DataFrame):
+        self._data = chats
+        self.max_len = 201
+        self.tokenizer = TOKENIZER
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, idx):
+        turn = self._data.iloc[idx]
+        q = turn['dialogue']
+        a = turn['response']
+        q_toked = self.tokenizer.tokenize(q)
+        a_toked = self.tokenizer.tokenize(a)
+        q_len = len(q_toked)
+        a_len = len(a_toked)
+        # token ids
+        token_ids = self.tokenizer.convert_tokens_to_ids(q_toked + a_toked)
+        while len(token_ids) < self.max_len:
+            token_ids += [self.tokenizer.pad_token_id]
+        # mask
+        mask = [0] * q_len + [1] * a_len + [0] * (self.max_len - q_len - a_len)
+        # labels
+        labels = [self.tokenizer.mask_token] * q_len + a_toked
+        labels_ids = self.tokenizer.convert_tokens_to_ids(labels)
+        while len(labels_ids) < self.max_len:
+            labels_ids += [self.tokenizer.pad_token_id]
+
+        return token_ids, np.array(mask), labels_ids
+
+
+class KoGPT2Chat(LightningModule):
+    def __init__(self, hparams, **kwargs):
+        super(KoGPT2Chat, self).__init__()
+        self.hparams_ = hparams
+        self.neg = -1e18
+        self.train_set = None
+        self.koDialoGPT = GPT2LMHeadModel.from_pretrained("byeongal/Ko-DialoGPT")
+        self.loss_function = torch.nn.CrossEntropyLoss(reduction='none')
+
+    def forward(self, inputs):
+        output = self.koDialoGPT(inputs, return_dict=True)
+        return output.logits
+
+    def training_step(self, batch, batch_idx):
+        token_ids, mask, label = batch
+        out = self(token_ids)
+        mask_3d = mask.unsqueeze(dim=2).repeat_interleave(repeats=out.shape[2], dim=2)
+        mask_out = torch.where(mask_3d == 1, out, self.neg * torch.ones_like(out))
+        loss = self.loss_function(mask_out.transpose(2, 1), label)
+        loss_avg = loss.sum() / mask.sum()
+        self.log('train_loss', loss_avg)
+        return loss_avg
+
+    def configure_optimizers(self):
+        # Prepare optimizer
+        param_optimizer = list(self.named_parameters())
+        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+        optimizer_grouped_parameters = [
+            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
+            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        ]
+        optimizer = AdamW(optimizer_grouped_parameters, lr=self.hparams_.lr, correct_bias=False)
+        # warm up lr
+        num_train_steps = len(self.train_dataloader()) * self.hparams_.max_epochs
+        num_warmup_steps = int(num_train_steps * self.hparams_.warmup_ratio)
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=num_warmup_steps, num_training_steps=num_train_steps)
+        lr_scheduler = {'scheduler': scheduler, 'name': 'cosine_schedule_with_warmup',
+                        'monitor': 'loss', 'interval': 'step',
+                        'frequency': 1}
+        return [optimizer], [lr_scheduler]
+
+    def _collate_fn(self, batch):
+        data = [item[0] for item in batch]
+        mask = [item[1] for item in batch]
+        label = [item[2] for item in batch]
+        return torch.LongTensor(data), torch.LongTensor(mask), torch.LongTensor(label)
+
+    def train_dataloader(self):
+        data = pd.read_csv('../data/train.txt', sep="\t", names=["dialogue", "response"], header=0)
+        self.train_set = dataset(data)
+        train_dataloader = DataLoader(
+            self.train_set, batch_size=self.hparams_.batch_size, num_workers=2,
+            shuffle=True, collate_fn=self._collate_fn)
+        return train_dataloader
+
+    def chat(self, sent='[NATURAL]'):
+        tokenizer = TOKENIZER
+        print("quit 입력시 종료")
+        with torch.no_grad():
+            while True:
+                q = input('user > ').strip()
+                if q == 'quit':
+                    break
+                a = ''
+                while True:
+                    input_ids = torch.LongTensor(tokenizer.encode(sent + q + "</s>" + a)).unsqueeze(dim=0)
+                    pred = self(input_ids)
+                    gen = tokenizer.convert_ids_to_tokens(torch.argmax(pred, dim=-1).squeeze().numpy().tolist())[-1]
+                    if gen == "</s>":
+                        break
+                    a += gen.replace('▁', ' ')
+                print(f"bot >> {a.strip()}")
+
+
+parser = add_model_specific_args(parser)
+parser = Trainer.add_argparse_args(parser)
+args = parser.parse_args()
+logging.info(args)
 
 if __name__ == "__main__":
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    torch.device(device)
-    p = Preprocesser()
-    print(f'Using {device} device')
-
-
-    def Perplexity(predict: torch.Tensor) -> float:
-        # torch.Size([16, 201, 51200]), torch.Size([16, 201])
-        # ^size√(1/sum(word's probability))
-        size = predict.size()[1]
-        perplexed = 0
-        for sent, sent2 in zip(predict, torch.argmax(predict, dim=-1)):
-            for tensor, idx in zip(sent, sent2):
-                perplexed += tensor[idx].item()
-        return (1 / perplexed) ** (1 / size)
-
-
-    class koDialoGPT(torch.nn.Module):
-        def __init__(self):
-            super(koDialoGPT, self).__init__()
-            self.model = GPT2LMHeadModel.from_pretrained(p.PREMODEL_NAME)
-
-        def forward(self, x):
-            input_ids, attention_mask = x
-            logits = self.model(input_ids=input_ids, attention_mask=attention_mask, return_dict=True)
-            return logits.logits
-
-
-    def train_loop(dataloader, t_model, loss_fn, optimizer):
-        size = len(dataloader.dataset)
-        correct = 0
-        loss_ = None
-        for batch, (input_ids, attention_mask, y) in enumerate(dataloader):
-            y = y.to(device)
-            pred = t_model((input_ids.to(device), attention_mask.to(device)))
-            pred = pred.to(device)
-            loss_ = loss_fn(pred.transpose(2, 1).float(), y.long())
-            correct = Perplexity(pred.to('cpu'))
-
-            optimizer.zero_grad()
-            loss_.backward(gradient=loss_)
-            optimizer.step()
-
-            if batch % 10 == 0:
-                loss_ = loss_.sum() / loss_.size()[-1]
-                print(f"loss: {loss_:>7f}  PPL: {correct:>0.3f} [{batch:>5d}/{len(dataloader):>5d}]")
-        return f"{loss_:>7f}", f"{correct :>0.3f})"
-
-
-    def val_loop(dataloader, t_model, loss_fn):
-        size = len(dataloader.dataset)
-        num_batches = len(dataloader)
-        test_loss, correct = 0, 0
-
-        with torch.no_grad():
-            for input_ids, attention_mask, y in dataloader:
-                y = y.to(device)
-                pred = t_model((input_ids.to(device), attention_mask.to(device)))
-                pred = pred.to(device)
-                temp_loss = loss_fn(pred.transpose(2, 1).float(), y.long())
-                test_loss += temp_loss.sum() / temp_loss.size()[-1]
-                correct += Perplexity(pred.to('cpu'))
-
-        test_loss /= num_batches
-        correct /= size
-        print(f"Validation : loss: {test_loss:>7f}  PPL: {correct:>0.3f}")
-        return f"{test_loss:>7f}", f"{correct:>0.3f})"
-
-
-    lr = 5e-5
-    epochs = 5
-    lowest_loss = 9999
-    lowest_val_loss = 9999
-    loss_func = torch.nn.CrossEntropyLoss(reduction='none', ignore_index=p.tokenizer.pad_token_id)  # pad_token == 3
-    history = ""
-    for optim_order in [torch.optim.Adam, torch.optim.RMSprop]:
-        model = koDialoGPT().to(device)
-        optim = optim_order(model.parameters(), lr=lr)
-
-        print(f"{str(optim).split()[0]} Start.")
-        history += str(optim).split()[0] + "\n"
-        history_list = {"loss": list(), "ppl": list(), "val_loss": list(), "val_ppl": list()}
-
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optim, milestones=[2, 4], gamma=0.5)
-        for t in range(epochs):
-            print(f"Epoch {t + 1}\n-------------------------------")
-            loss, ppl = train_loop(p.getTorchTrainData(), model, loss_func, optim)
-            val_loss, val_ppl = val_loop(p.getTorchValidationData(), model, loss_func)
-            scheduler.step()
-
-            if float(val_loss) < lowest_val_loss:
-                torch.save(model, f"../model/torch_models/{str(optim).split()[0]}/val_loss/valLoss_model.bin")
-                torch.save(model.state_dict(),
-                           f"../model/torch_models/{str(optim).split()[0]}/val_loss/pytorch_model.bin")
-                lowest_val_loss = float(val_loss)
-                print("Model Saved(val_loss)")
-            if float(loss) < lowest_loss:
-                torch.save(model, f"../model/torch_models/{str(optim).split()[0]}/loss/loss_model.bin")
-                torch.save(model.state_dict(), f"../model/torch_models/{str(optim).split()[0]}/loss/pytorch_model.bin")
-                lowest_loss = float(loss)
-                print("Model Saved(loss)")
-
-            history_list["loss"].append(loss)
-            history_list["ppl"].append(ppl)
-            history_list["val_loss"].append(val_loss)
-            history_list["val_ppl"].append(val_ppl)
-
-        for k, v in history_list.items():
-            history += k + " : " + str(v) + "\n"
-        history += "\n"
-        print("Done!\n")
-
-    open("../model/history.txt", "w+", encoding="utf-8").write(history)
+    if args.train:
+        checkpoint_callback = ModelCheckpoint(
+            dirpath='../torch_models/model_chp',
+            filename='{epoch:02d}-{train_loss:.2f}',
+            verbose=True,
+            save_last=True,
+            monitor='train_loss',
+            mode='min'
+        )
+        # usage = python file.py --gpus=1 --max_epochs=10
+        model = KoGPT2Chat(args)
+        model.train()
+        trainer = Trainer.from_argparse_args(
+            args,
+            checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
+        trainer.fit(model)
+        logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
+        torch.save(model, "../model/torch_models/")
+    if args.chat:
+        model = KoGPT2Chat.load_from_checkpoint(args.model_params)
+        model.chat()
