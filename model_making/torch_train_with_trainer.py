@@ -1,5 +1,6 @@
 from transformers import Trainer, TrainingArguments, DataCollatorWithPadding
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
+from typing import List, Dict
 import pandas as pd
 import datetime
 import torch
@@ -10,7 +11,7 @@ if __name__ == "__main__":
     RANDOM_SEED = 10
     MAX_LEN = 201
 
-    def getDataset(isTrain: bool, using_device: str):
+    def getDataset(isTrain: bool, using_device: str) -> List[Dict[str, torch.Tensor]]:
         torch.manual_seed(RANDOM_SEED)
         torch.cuda.manual_seed(RANDOM_SEED)
 
@@ -29,7 +30,7 @@ if __name__ == "__main__":
                 temp_element[k] = v.to(using_device)
             temp_element["labels"] = tokenizer(d+r, return_tensors="pt", max_length=MAX_LEN,
                                                padding="max_length", truncation=True)["input_ids"].to(using_device)
-
+            # temp_element.keys() => ["input_ids", "attention_mask", "labels"]
             encoded_data.append(temp_element)
         return encoded_data
 
