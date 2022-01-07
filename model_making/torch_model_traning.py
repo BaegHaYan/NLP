@@ -114,21 +114,14 @@ class KoGPT2Chat(LightningModule):
             {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
         optimizer = AdamW(optimizer_grouped_parameters, lr=self.hparams_.lr, correct_bias=False)
-        # warm up lr
-        num_train_steps = len(self.train_dataloader()) * self.hparams_.max_epochs
-        num_warmup_steps = int(num_train_steps * self.hparams_.warmup_ratio)
-        scheduler = get_cosine_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=num_warmup_steps, num_training_steps=num_train_steps)
-        lr_scheduler = {'scheduler': scheduler, 'name': 'cosine_schedule_with_warmup',
-                        'monitor': 'loss', 'interval': 'step',
-                        'frequency': 1}
-        return [optimizer], [lr_scheduler]
+
+        return [optimizer]
 
     def _collate_fn(self, batch):
-        data = [item[0] for item in batch]
-        mask = [item[1] for item in batch]
-        label = [item[2] for item in batch]
+        data = np.array([item[0] for item in batch])
+        mask = np.array([item[1] for item in batch])
+        label = np.array([item[2] for item in batch])
+
         return torch.LongTensor(data), torch.LongTensor(mask), torch.LongTensor(label)
 
     def train_dataloader(self):
@@ -139,7 +132,7 @@ class KoGPT2Chat(LightningModule):
             shuffle=True, collate_fn=self._collate_fn)
         return train_dataloader
 
-    def chat(self, sent='[NATURAL]'):
+    def chat(self, emotion='[NATURAL]'):
         tokenizer = TOKENIZER
         print("quit 입력시 종료")
         with torch.no_grad():
@@ -149,7 +142,7 @@ class KoGPT2Chat(LightningModule):
                     break
                 a = ''
                 while True:
-                    input_ids = torch.LongTensor(tokenizer.encode(sent + q + "</s>" + a)).unsqueeze(dim=0)
+                    input_ids = torch.LongTensor(tokenizer.encode(emotion + q + "</s>" + a)).unsqueeze(dim=0)
                     pred = self(input_ids)
                     gen = tokenizer.convert_ids_to_tokens(torch.argmax(pred, dim=-1).squeeze().numpy().tolist())[-1]
                     if gen == "</s>":
@@ -181,7 +174,7 @@ if __name__ == "__main__":
             checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
         trainer.fit(model)
         logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
-        torch.save(model, "../model/torch_models/")
+        torch.save(model, "../model/torch_models/pytorch_model.bin")
     if args.chat:
         model = KoGPT2Chat.load_from_checkpoint(args.model_params)
         model.chat()
