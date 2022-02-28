@@ -14,12 +14,31 @@ class Dataset_combiner:
         self.ru_to_en = pipeline("translation_ru_to_en", model="Helsinki-NLP/opus-mt-ru-en")
 
         self.columns = ["D1", "R1", "D2", "R2", "D3", "R3", "D4", "R4", "D5", "R5"]
-        self.train = pd.DataFrame(columns=self.columns)
-        self.val = pd.DataFrame(columns=self.columns)
-        self.test = pd.DataFrame(columns=self.columns)
+        self.data = pd.DataFrame(columns=self.columns)
+        self.combine_raw_datasets()
 
     def combine_raw_datasets(self):
-        pass
+        combine_functions = [self.processing_Chatbot_data,
+                             self.processing_ConversationJSON_data,
+                             self.processing_conversations_data,
+                             self.processing_cornell_movie_data,
+                             self.processing_Depression_data,
+                             self.processing_HumanConversation_data,
+                             self.processing_TOQ_Russian_data,
+                             self.processing_TopicalChat_data,
+                             self.processing_EmotionalConv_data]
+        for func in combine_functions:
+            print('start ' + func.__name__)
+            file_data = func()
+            self.data = self.data.append(file_data, ignore_index=True)
+            print('ended ' + func.__name__)
+        print('data num : ' + str(len(self.data)))
+        train, val = train_test_split(self.data, train_size=0.7)
+        val, test = train_test_split(val, train_size=0.7)
+        train.to_csv("../data/combined_raw_dataset/train.txt", sep="\t", na_rep="None", encoding="UTF-8")
+        val.to_csv("../data/combined_raw_dataset/val.txt", sep="\t", na_rep="None", encoding="UTF-8")
+        test.to_csv("../data/combined_raw_dataset/test.txt", sep="\t", na_rep="None", encoding="UTF-8")
+        print("combining datasets were ended")
 
     def processing_Chatbot_data(self) -> pd.DataFrame:
         raw_data = pd.read_csv("../data/raw_dataset/Chatbot/ChatbotData.csv", names=self.columns[:2]+["label"])
