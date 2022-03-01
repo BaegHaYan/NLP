@@ -32,12 +32,16 @@ class Dataset_combiner:
             file_data = func()
             self.data = self.data.append(file_data, ignore_index=True)
             print('ended ' + func.__name__)
-        print('data num : ' + str(len(self.data)))
+
+        print('all of data num : ' + str(len(self.data)))
         train, val = train_test_split(self.data, train_size=0.7)
         val, test = train_test_split(val, train_size=0.7)
-        train.to_csv("../data/combined_raw_dataset/train.txt", sep="\t", na_rep="None", encoding="UTF-8")
-        val.to_csv("../data/combined_raw_dataset/val.txt", sep="\t", na_rep="None", encoding="UTF-8")
-        test.to_csv("../data/combined_raw_dataset/test.txt", sep="\t", na_rep="None", encoding="UTF-8")
+        print(f"train num : {len(train)}")
+        print(f"val num : {len(val)}")
+        print(f"test num : {len(test)}")
+        train.to_csv("../data/combined_dataset/train.txt", sep="\t", na_rep="None", encoding="UTF-8")
+        val.to_csv("../data/combined_dataset/val.txt", sep="\t", na_rep="None", encoding="UTF-8")
+        test.to_csv("../data/combined_dataset/test.txt", sep="\t", na_rep="None", encoding="UTF-8")
         print("combining datasets were ended")
 
     def processing_Chatbot_data(self) -> pd.DataFrame:
