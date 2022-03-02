@@ -1,4 +1,6 @@
+import setuptools
 from transformers import MBartForConditionalGeneration, MBartTokenizerFast
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from torch.utils.data import TensorDataset, DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
 from sklearn.model_selection import train_test_split
@@ -9,7 +11,7 @@ import os
 import re
 
 class Translater_en_to_ko(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, epochs: int, gamma: float = 0.5):
         super(Translater_en_to_ko, self).__init__()
         self.RANDOM_SEED = 7777
         torch.manual_seed(self.RANDOM_SEED)
@@ -19,16 +21,18 @@ class Translater_en_to_ko(pl.LightningModule):
         self.model = MBartForConditionalGeneration.from_pretrained("facebook/mbart-large-cc25")
         self.tokenizer = MBartTokenizerFast.from_pretrained("facebook/mbart-large-cc25")
 
+        self.epochs = epochs
+        self.gamma = gamma
         self.batch_size = 32
-        self.max_len_x = None
-        self.max_len_y = None
+        self.max_len_x = 82
+        self.max_len_y = 78
 
         self.train_set = None
         self.val_set = None
 
     def configure_optimizers(self):
         optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        lr_scheduler = MultiStepLR(optim, milestones=[], gamma=1.0)
+        lr_scheduler = MultiStepLR(optim, milestones=[int(self.epochs*0.3), int(self.epochs*0.6)], gamma=self.gamma)
         return [optim], [lr_scheduler]
 
     def forward(self, x):
@@ -85,11 +89,25 @@ class Translater_en_to_ko(pl.LightningModule):
 
     def change_korean_honorific(self, sent) -> str:
         sent = re.sub("그렇습니다", "그래", sent)
-        sent = re.sub("주세요", "줄래", sent)
+        sent = re.sub("주세요\.", "줄래?", sent)
+        sent = re.sub("하세요", "해", sent)
         sent = re.sub("합니다", "해", sent)
+        sent = re.sub("하였다", "했어", sent)
         sent = re.sub("습니다", "어", sent)
-        sent = re.sub("요", "", sent)
         sent = re.sub("제가", "내가", sent)
+        sent = re.sub("제게", "내게", sent)
         sent = re.sub("저희", "우리", sent)
-        sent = re.sub("네([,.?! ])", r"응\1", sent)
+        sent = re.sub("요", "", sent)
+        sent = re.sub("네([,.?!])", r"응\1", sent)
         return sent
+
+
+epochs = 5
+model = Translater_en_to_ko(epochs)
+trainer = pl.Trainer(max_epochs=epochs, gpus=torch.cuda.device_count(),
+                     callbacks=[ModelCheckpoint("../models/label_classifier/model_ckp/", verbose=True, monitor="val_acc", mode="max"),
+                                EarlyStopping(monitor="val_loss", mode="min", patience=3)])
+
+trainer.fit(model)
+torch.save(model.state_dict(), "../models/label_classifier/torch_model/model_state.pt")
+trainer.save_checkpoint("../models/label_classifier/pl_model/pytorch_model.bin")

@@ -1,5 +1,5 @@
-import pandas as pd
 import setuptools
+import pandas as pd
 import torch
 import pytorch_lightning as pl
 from torch.utils.data import TensorDataset, DataLoader
@@ -9,13 +9,15 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from transformers import BertForSequenceClassification, BertTokenizerFast
 
 class LabelClassification(LightningModule):
-    def __init__(self):
+    def __init__(self, epochs: int, gamma: float = 0.5):
         super(LabelClassification, self).__init__()
         self.RANDOM_SEED = 7777
         torch.manual_seed(self.RANDOM_SEED)
         torch.cuda.manual_seed(self.RANDOM_SEED)
         pl.seed_everything(self.RANDOM_SEED)
 
+        self.epochs = epochs
+        self.gamma = gamma
         self.num_labels = 7
         self.learning_rate = 5e-5
         self.batch_size = 32
@@ -32,7 +34,7 @@ class LabelClassification(LightningModule):
 
     def configure_optimizers(self):
         optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        lr_scheduler = MultiStepLR(optim, milestones=[], gamma=1.0)
+        lr_scheduler = MultiStepLR(optim, milestones=[int(self.epochs*0.3), int(self.epochs*0.6)], gamma=self.gamma)
         return [optim], [lr_scheduler]
 
     def forward(self, x):
@@ -112,7 +114,7 @@ class LabelClassification(LightningModule):
 
 
 epochs = 5
-model = LabelClassification()
+model = LabelClassification(epochs)
 trainer = Trainer(max_epochs=epochs, gpus=torch.cuda.device_count(),
                   callbacks=[ModelCheckpoint("../models/label_classifier/model_ckp/", verbose=True, monitor="val_acc", mode="max"),
                              EarlyStopping(monitor="val_loss", mode="min", patience=3)])
