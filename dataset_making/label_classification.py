@@ -19,7 +19,7 @@ class LabelClassification(LightningModule):
         self.num_labels = 7
         self.learning_rate = 5e-5
         self.batch_size = 32
-        self.input_dim = None  # train - 55
+        self.input_dim = 55  # train - 55, val - 50
         self.pad_token_id = self.tokenizer.pad_token_id
 
         self.MODEL_NAME = "Huffon/klue-roberta-base-nli"
@@ -28,7 +28,7 @@ class LabelClassification(LightningModule):
 
         self.label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
         self.train_set = None  # 3366
-        self.val_set = None
+        self.val_set = None  # 436
 
     def configure_optimizers(self):
         optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
@@ -47,8 +47,8 @@ class LabelClassification(LightningModule):
         return torch.sum(output == labels) / output.__len__() * 100  # %(Precentage)
 
     def prepare_data(self):
-        raw_train = pd.read_csv("../data/encoded_dataset/train/train_data1.txt", sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
-        raw_val = pd.read_csv("../data/encoded_dataset/val/val_data1.txt", sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
+        raw_train = pd.read_csv("../data/label_classification_dataset/train/train_data1.txt", sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
+        raw_val = pd.read_csv("../data/label_classification_dataset/val/val_data1.txt", sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
 
         train_x = []
         train_Y = []
@@ -109,3 +109,14 @@ class LabelClassification(LightningModule):
         mean_acc = torch.stack([output['val_acc'] for output in outputs]).mean()
         logs = {'val_loss': mean_loss, 'val_acc': mean_acc}
         return {'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc, 'log': logs}
+
+
+epochs = 5
+model = LabelClassification()
+trainer = Trainer(max_epochs=epochs, gpus=torch.cuda.device_count(),
+                  callbacks=[ModelCheckpoint("../models/label_classifier/model_ckp/", verbose=True, monitor="val_acc", mode="max"),
+                             EarlyStopping(monitor="val_loss", mode="min", patience=3)])
+
+trainer.fit(model)
+torch.save(model.state_dict(), "../models/label_classifier/torch_model/model_state.pt")
+trainer.save_checkpoint("../models/label_classifier/pl_model/pytorch_model.bin")
