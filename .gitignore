@@ -1,6 +1,6 @@
 # data folder
 data
-# tensorboard logs
-logs
 # venv
 venv
+# plan file
+plan.md
