@@ -2,31 +2,30 @@ import setuptools
 import pandas as pd
 import torch
 import pytorch_lightning as pl
+import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
-from torch.optim.lr_scheduler import MultiStepLR
+from torch.optim.lr_scheduler import LinearLR
 from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from transformers import BertForSequenceClassification, BertTokenizerFast
 
 class LabelClassification(LightningModule):
-    def __init__(self, epochs: int, gamma: float = 0.5):
+    def __init__(self):
         super(LabelClassification, self).__init__()
         self.RANDOM_SEED = 7777
-        torch.manual_seed(self.RANDOM_SEED)
-        torch.cuda.manual_seed(self.RANDOM_SEED)
         pl.seed_everything(self.RANDOM_SEED)
 
-        self.epochs = epochs
-        self.gamma = gamma
+        self.epochs = 10
         self.num_labels = 7
         self.learning_rate = 5e-5
-        self.batch_size = 32
+        self.batch_size = 16
         self.input_dim = 55  # train - 55, val - 50
-        self.pad_token_id = self.tokenizer.pad_token_id
 
         self.MODEL_NAME = "Huffon/klue-roberta-base-nli"
         self.model = BertForSequenceClassification.from_pretrained(self.MODEL_NAME, num_labels=self.num_labels)
         self.tokenizer = BertTokenizerFast.from_pretrained(self.MODEL_NAME)
+        self.pad_token_id = self.tokenizer.pad_token_id
 
         self.label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
         self.train_set = None  # 3366
@@ -34,15 +33,21 @@ class LabelClassification(LightningModule):
 
     def configure_optimizers(self):
         optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        lr_scheduler = MultiStepLR(optim, milestones=[int(self.epochs*0.3), int(self.epochs*0.6)], gamma=self.gamma)
+        lr_scheduler = LinearLR(optim, 0.5, total_iters=5)
         return [optim], [lr_scheduler]
 
+    def configure_callbacks(self):
+        check_point = ModelCheckpoint("../models/label_classifier/model_ckp/", monitor="val_loss", mode="min")
+        early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=4)
+        return [check_point, early_stopping]
+
     def forward(self, x):
-        output = self.model(x)
-        return output.logit
+        output = self.model(x).logits
+        output = F.softmax(output, dim=1)
+        return output
 
     def cross_entropy_loss(self, output, labels):
-        return torch.nn.CrossEntropyLoss()(output, labels, ignore_index=self.pad_token_id)
+        return torch.nn.CrossEntropyLoss()(output, labels)
 
     def accuracy(self, output, labels) -> float:
         output = torch.argmax(output, dim=1)
@@ -55,14 +60,23 @@ class LabelClassification(LightningModule):
         train_x = []
         train_Y = []
         for _, (s1, s2, s3) in raw_train.iterrows():
-            train_x.append(" ".join(s1.split()[1:]))
-            train_Y.append(self.label_dict[s1.split()[0]])
+            try:
+                train_x.append(" ".join(s1.split()[1:]))
+                train_Y.append(self.label_dict[s1.split()[0]])
+            except KeyError:
+                train_x = train_x[:-1]
             if s2 != "NONE":
-                train_x.append(" ".join(s2.split()[1:]))
-                train_Y.append(self.label_dict[s2.split()[0]])
+                try:
+                    train_x.append(" ".join(s2.split()[1:]))
+                    train_Y.append(self.label_dict[s2.split()[0]])
+                except KeyError:
+                    train_x = train_x[:-1]
             if s3 != "NONE":
-                train_x.append(" ".join(s3.split()[1:]))
-                train_Y.append(self.label_dict[s3.split()[0]])
+                try:
+                    train_x.append(" ".join(s3.split()[1:]))
+                    train_Y.append(self.label_dict[s3.split()[0]])
+                except KeyError:
+                    train_x = train_x[:-1]
         train_x = self.tokenizer.batch_encode_plus(train_x, max_length=self.input_dim, padding="max_length", truncation=True, return_tensors="pt")
         train_Y = torch.LongTensor(train_Y)
         self.train_set = TensorDataset(train_x["input_ids"], train_Y)
@@ -70,14 +84,23 @@ class LabelClassification(LightningModule):
         val_x = []
         val_Y = []
         for _, (s1, s2, s3) in raw_val.iterrows():
-            val_x.append(" ".join(s1.split()[1:]))
-            val_Y.append(self.label_dict[s1.split()[0]])
+            try:
+                val_x.append(" ".join(s1.split()[1:]))
+                val_Y.append(self.label_dict[s1.split()[0]])
+            except KeyError:
+                val_x = val_x[:-1]
             if s2 != "NONE":
-                val_x.append(" ".join(s2.split()[1:]))
-                val_Y.append(self.label_dict[s2.split()[0]])
+                try:
+                    val_x.append(" ".join(s2.split()[1:]))
+                    val_Y.append(self.label_dict[s2.split()[0]])
+                except KeyError:
+                    val_x = val_x[:-1]
             if s3 != "NONE":
-                val_x.append(" ".join(s3.split()[1:]))
-                val_Y.append(self.label_dict[s3.split()[0]])
+                try:
+                    val_x.append(" ".join(s3.split()[1:]))
+                    val_Y.append(self.label_dict[s3.split()[0]])
+                except KeyError:
+                    val_x = val_x[:-1]
         val_x = self.tokenizer.batch_encode_plus(val_x, max_length=self.input_dim, padding="max_length", truncation=True, return_tensors="pt")
         val_Y = torch.LongTensor(val_Y)
         self.val_set = TensorDataset(val_x["input_ids"], val_Y)
@@ -94,8 +117,10 @@ class LabelClassification(LightningModule):
         loss = self.cross_entropy_loss(y_pred, y)
         accuracy = self.accuracy(y_pred, y)
 
-        logs = {'train_loss': loss, 'train_acc': accuracy}
-        return {'loss': loss, 'accuracy': accuracy, 'log': logs}
+        self.log_dict({'loss': loss, 'acc': accuracy})
+        if batch_idx % 10 == 0:
+            print(f"\nloss: {loss}, acc: {accuracy}, progress: {batch_idx}/{len(self.train_dataloader())}", end="")
+        return {'loss': loss, 'acc': accuracy}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -103,22 +128,23 @@ class LabelClassification(LightningModule):
         loss = self.cross_entropy_loss(y_pred, y)
         accuracy = self.accuracy(y_pred, y)
 
-        logs = {'val_loss': loss, 'val_acc': accuracy}
-        return {'loss': loss, 'accuracy': accuracy, 'log': logs}
+        self.log_dict({'val_loss': loss, 'val_acc': accuracy})
+        if batch_idx % 10 == 0:
+            print(f"\nval_loss: {loss}, val_acc: {accuracy}, progress: {batch_idx}/{len(self.val_dataloader())}", end="")
+        return {'val_loss': loss, 'val_acc': accuracy}
 
     def validation_epoch_end(self, outputs):
         mean_loss = torch.stack([output['val_loss'] for output in outputs]).mean()
         mean_acc = torch.stack([output['val_acc'] for output in outputs]).mean()
-        logs = {'val_loss': mean_loss, 'val_acc': mean_acc}
-        return {'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc, 'log': logs}
+
+        self.log_dict({'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc})
+        print(f"\nmean_val_loss: {mean_loss}, mean_val_acc: {mean_acc}")
+        return {'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc}
 
 
-epochs = 5
-model = LabelClassification(epochs)
-trainer = Trainer(max_epochs=epochs, gpus=torch.cuda.device_count(),
-                  callbacks=[ModelCheckpoint("../models/label_classifier/model_ckp/", verbose=True, monitor="val_acc", mode="max"),
-                             EarlyStopping(monitor="val_loss", mode="min", patience=3)])
-
+model = LabelClassification()
+trainer = Trainer(max_epochs=model.epochs, gpus=torch.cuda.device_count(),
+                  logger=TensorBoardLogger("../models/label_classifier/tensorboardLog/"))
 trainer.fit(model)
-torch.save(model.state_dict(), "../models/label_classifier/torch_model/model_state.pt")
-trainer.save_checkpoint("../models/label_classifier/pl_model/pytorch_model.bin")
+torch.save(model, "../models/label_classifier/torch_model/pytorch_model.bin")
+trainer.save_checkpoint("../models/label_classifier/pl_model/pl_model.ptl")
