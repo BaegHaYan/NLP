@@ -1,8 +1,10 @@
 import setuptools
-import pandas as pd
+import re
 import torch
+import pandas as pd
 import pytorch_lightning as pl
 import torch.nn.functional as F
+from torch.optim import AdamW
 from torch.utils.data import TensorDataset, DataLoader
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -33,9 +35,9 @@ class LabelClassification(LightningModule):
         self.val_set = None  # 436
 
     def configure_optimizers(self):
-        optim = AdamW(self.parameters(), lr=self.learning_rate)
+        optim = AdamW(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
 
-        num_train_steps = len(self.train_dataloader()) * self.hparams.max_epochs
+        num_train_steps = len(self.train_dataloader()) * self.epochs
         num_warmup_steps = int(num_train_steps * self.warmup_ratio)
         scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=num_train_steps)
         lr_scheduler = {'scheduler': scheduler, 'name': 'cosine_schedule_with_warmup', 'monitor': 'loss', 'interval': 'step', 'frequency': 1}
@@ -52,7 +54,7 @@ class LabelClassification(LightningModule):
         return output
 
     def cross_entropy_loss(self, output, labels):
-        return torch.nn.CrossEntropyLoss(reduction='none')(output, labels)
+        return torch.nn.CrossEntropyLoss()(output, labels)
 
     def accuracy(self, output, labels) -> float:
         output = torch.argmax(output, dim=1)
@@ -64,48 +66,24 @@ class LabelClassification(LightningModule):
 
         train_x = []
         train_Y = []
-        for _, (s1, s2, s3) in raw_train.iterrows():
-            try:
-                train_x.append(" ".join(s1.split()[1:]))
-                train_Y.append(self.label_dict[s1.split()[0]])
-            except KeyError:
-                train_x = train_x[:-1]
-            if s2 != "NONE":
-                try:
-                    train_x.append(" ".join(s2.split()[1:]))
-                    train_Y.append(self.label_dict[s2.split()[0]])
-                except KeyError:
-                    train_x = train_x[:-1]
-            if s3 != "NONE":
-                try:
-                    train_x.append(" ".join(s3.split()[1:]))
-                    train_Y.append(self.label_dict[s3.split()[0]])
-                except KeyError:
-                    train_x = train_x[:-1]
+        for _, row in raw_train.iterrows():
+            for s in row:
+                if s != "NONE":
+                    s = re.sub('(\[.*])', r'\1 ', s)
+                    train_x.append(" ".join(s.split()[1:]))
+                    train_Y.append(self.label_dict[s.split()[0]])
         train_x = self.tokenizer.batch_encode_plus(train_x, max_length=self.input_dim, padding="max_length", truncation=True, return_tensors="pt")
         train_Y = torch.LongTensor(train_Y)
         self.train_set = TensorDataset(train_x["input_ids"], train_Y)
 
         val_x = []
         val_Y = []
-        for _, (s1, s2, s3) in raw_val.iterrows():
-            try:
-                val_x.append(" ".join(s1.split()[1:]))
-                val_Y.append(self.label_dict[s1.split()[0]])
-            except KeyError:
-                val_x = val_x[:-1]
-            if s2 != "NONE":
-                try:
-                    val_x.append(" ".join(s2.split()[1:]))
-                    val_Y.append(self.label_dict[s2.split()[0]])
-                except KeyError:
-                    val_x = val_x[:-1]
-            if s3 != "NONE":
-                try:
-                    val_x.append(" ".join(s3.split()[1:]))
-                    val_Y.append(self.label_dict[s3.split()[0]])
-                except KeyError:
-                    val_x = val_x[:-1]
+        for _, row in raw_val.iterrows():
+            for s in row:
+                if s != "NONE":
+                    s = re.sub('(\[.*])', r'\1 ', s)
+                    val_x.append(" ".join(s.split()[1:]))
+                    val_Y.append(self.label_dict[s.split()[0]])
         val_x = self.tokenizer.batch_encode_plus(val_x, max_length=self.input_dim, padding="max_length", truncation=True, return_tensors="pt")
         val_Y = torch.LongTensor(val_Y)
         self.val_set = TensorDataset(val_x["input_ids"], val_Y)
