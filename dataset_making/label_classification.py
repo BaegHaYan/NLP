@@ -9,7 +9,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
+from transformers.optimization import get_cosine_schedule_with_warmup
 from transformers import BertForSequenceClassification, BertTokenizerFast
 
 class LabelClassification(LightningModule):
@@ -44,7 +44,8 @@ class LabelClassification(LightningModule):
         return [optim], [lr_scheduler]
 
     def configure_callbacks(self):
-        check_point = ModelCheckpoint("../models/label_classifier/model_ckp/", monitor="val_loss", mode="min")
+        check_point = ModelCheckpoint(dirpath="../models/label_classifier/model_ckp/", filename='{epoch:02d}_{loss:.2f}',
+                                      verbose=True, save_last=True, monitor='loss', mode='min')
         early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=4)
         return [check_point, early_stopping]
 
@@ -68,8 +69,11 @@ class LabelClassification(LightningModule):
         train_Y = []
         for _, row in raw_train.iterrows():
             for s in row:
-                if s != "NONE":
+                if any(label in s for label in self.label_dict.keys()):
+                    s = re.sub('(.+)(\[.*])', r'\2 \1', s)
                     s = re.sub('(\[.*])', r'\1 ', s)
+                    if re.search('(\[.*])', s) is None:
+                        break
                     train_x.append(" ".join(s.split()[1:]))
                     train_Y.append(self.label_dict[s.split()[0]])
         train_x = self.tokenizer.batch_encode_plus(train_x, max_length=self.input_dim, padding="max_length", truncation=True, return_tensors="pt")
@@ -80,8 +84,11 @@ class LabelClassification(LightningModule):
         val_Y = []
         for _, row in raw_val.iterrows():
             for s in row:
-                if s != "NONE":
+                if any(label in s for label in self.label_dict.keys()):
+                    s = re.sub('(.+)(\[.*])', r'\2 \1', s)
                     s = re.sub('(\[.*])', r'\1 ', s)
+                    if re.search('(\[.*])', s) is None:
+                        break
                     val_x.append(" ".join(s.split()[1:]))
                     val_Y.append(self.label_dict[s.split()[0]])
         val_x = self.tokenizer.batch_encode_plus(val_x, max_length=self.input_dim, padding="max_length", truncation=True, return_tensors="pt")
