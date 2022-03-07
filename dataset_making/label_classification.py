@@ -4,10 +4,10 @@ import torch
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
-from torch.optim.lr_scheduler import LinearLR
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 from transformers import BertForSequenceClassification, BertTokenizerFast
 
 class LabelClassification(LightningModule):
@@ -17,9 +17,10 @@ class LabelClassification(LightningModule):
         pl.seed_everything(self.RANDOM_SEED)
 
         self.epochs = 10
-        self.num_labels = 7
-        self.learning_rate = 5e-5
         self.batch_size = 16
+        self.warmup_ratio = 0.1
+        self.learning_rate = 5e-3  # 5e-5
+        self.num_labels = 7
         self.input_dim = 55  # train - 55, val - 50
 
         self.MODEL_NAME = "Huffon/klue-roberta-base-nli"
@@ -32,8 +33,12 @@ class LabelClassification(LightningModule):
         self.val_set = None  # 436
 
     def configure_optimizers(self):
-        optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        lr_scheduler = LinearLR(optim, 0.5, total_iters=5)
+        optim = AdamW(self.parameters(), lr=self.learning_rate)
+
+        num_train_steps = len(self.train_dataloader()) * self.hparams.max_epochs
+        num_warmup_steps = int(num_train_steps * self.warmup_ratio)
+        scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=num_train_steps)
+        lr_scheduler = {'scheduler': scheduler, 'name': 'cosine_schedule_with_warmup', 'monitor': 'loss', 'interval': 'step', 'frequency': 1}
         return [optim], [lr_scheduler]
 
     def configure_callbacks(self):
@@ -47,7 +52,7 @@ class LabelClassification(LightningModule):
         return output
 
     def cross_entropy_loss(self, output, labels):
-        return torch.nn.CrossEntropyLoss()(output, labels)
+        return torch.nn.CrossEntropyLoss(reduction='none')(output, labels)
 
     def accuracy(self, output, labels) -> float:
         output = torch.argmax(output, dim=1)
