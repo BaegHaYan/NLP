@@ -117,9 +117,7 @@ class LabelClassification(LightningModule):
         loss = self.cross_entropy_loss(y_pred, y)
         accuracy = self.accuracy(y_pred, y)
 
-        self.log_dict({'loss': loss, 'acc': accuracy})
-        if batch_idx % 10 == 0:
-            print(f"\nloss: {loss}, acc: {accuracy}, progress: {batch_idx}/{len(self.train_dataloader())}", end="")
+        self.log_dict({'loss': loss, 'acc': accuracy}, prog_bar=True, sync_dist=True)
         return {'loss': loss, 'acc': accuracy}
 
     def validation_step(self, batch, batch_idx):
@@ -128,17 +126,14 @@ class LabelClassification(LightningModule):
         loss = self.cross_entropy_loss(y_pred, y)
         accuracy = self.accuracy(y_pred, y)
 
-        self.log_dict({'val_loss': loss, 'val_acc': accuracy})
-        if batch_idx % 10 == 0:
-            print(f"\nval_loss: {loss}, val_acc: {accuracy}, progress: {batch_idx}/{len(self.val_dataloader())}", end="")
+        self.log_dict({'val_loss': loss, 'val_acc': accuracy}, on_epoch=True, prog_bar=True, sync_dist=True)
         return {'val_loss': loss, 'val_acc': accuracy}
 
     def validation_epoch_end(self, outputs):
         mean_loss = torch.stack([output['val_loss'] for output in outputs]).mean()
         mean_acc = torch.stack([output['val_acc'] for output in outputs]).mean()
 
-        self.log_dict({'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc})
-        print(f"\nmean_val_loss: {mean_loss}, mean_val_acc: {mean_acc}")
+        self.log_dict({'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc}, on_epoch=True, prog_bar=True, sync_dist=True)
         return {'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc}
 
 
