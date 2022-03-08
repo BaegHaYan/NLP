@@ -44,8 +44,8 @@ class LabelClassification(LightningModule):
 
     def configure_callbacks(self):
         check_point = ModelCheckpoint(dirpath="../models/label_classifier/model_ckp/", filename='{epoch:02d}_{loss:.2f}',
-                                      verbose=True, save_last=True, monitor='loss', mode='min')
-        early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
+                                      verbose=True, save_last=True, monitor='val_loss', mode='min')
+        early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=4)
         return [check_point, early_stopping]
 
     def forward(self, x):
@@ -115,7 +115,7 @@ class LabelClassification(LightningModule):
         loss = self.cross_entropy_loss(y_pred, y)
         accuracy = self.accuracy(y_pred, y)
 
-        self.log_dict({'val_loss': loss, 'val_acc': accuracy}, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log_dict({'val_loss': loss, 'val_acc': accuracy}, prog_bar=True, sync_dist=True)
         return {'val_loss': loss, 'val_acc': accuracy}
 
     def validation_epoch_end(self, outputs):
