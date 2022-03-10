@@ -1,6 +1,7 @@
 import setuptools
 import re
 import torch
+import math
 import pandas as pd
 import pytorch_lightning as pl
 from torch.optim import AdamW
@@ -11,15 +12,32 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, Learning
 from transformers.optimization import get_cosine_schedule_with_warmup
 from transformers import ElectraTokenizerFast
 
+class PositionalEncoding(torch.nn.Module):
+    def __init__(self, model_dim, input_dim, dropout_rate):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = torch.nn.Dropout(dropout_rate)
+        pos_encoding = torch.zeros(input_dim, model_dim)
+        position_list = torch.arange(input_dim, dtype=torch.float).view(-1, 1)  # unsqueez(1)
+        division_term = torch.exp(torch.arange(0, model_dim, 2).float()*(-math.log(10000)/model_dim))
+        # PE(pos, 2i) = sin(pos/1000^(2i/dim_model))
+        pos_encoding[:, 0::2] = torch.sin(position_list * division_term)
+        # PE(pos, 2i + 1) = cos(pos/1000^(2i/dim_model))
+        pos_encoding[:, 1::2] = torch.cos(position_list * division_term)
+        pos_encoding = pos_encoding.unsqueeze(0).transpose(0, 1)
+        self.register_buffer("pos_encoding", pos_encoding)
+
+    def forward(self, x: torch.tensor) -> torch.tensor:
+        return self.dropout(x + self.pos_encoding[:x.size(0)])
+
+
 class LabelClassification(LightningModule):
-    def __init__(self, epochs: int, model_name: str, use_nll: bool = False):
+    def __init__(self, epochs: int, use_nll: bool = False):
         super(LabelClassification, self).__init__()
         self.RANDOM_SEED = 7777
         pl.seed_everything(self.RANDOM_SEED)
 
         self.epochs = epochs
         self.use_nll = use_nll
-        self.model_name = model_name
         self.batch_size = 32
         self.num_labels = 7
         self.input_dim = 55
@@ -29,7 +47,7 @@ class LabelClassification(LightningModule):
         self.embedding_size = 512
         self.hidden_size = 256
         self.dropout_rate = 0.1
-        self.num_layers = 3
+        self.num_layers = 12
 
         self.label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
         self.train_set = None  # 3366
@@ -43,16 +61,13 @@ class LabelClassification(LightningModule):
             torch.nn.ELU(),
             torch.nn.LayerNorm(self.embedding_size, eps=1e-5, elementwise_affine=True)
         )
-        if self.model_name == "GRU":
-            self.GRU_layer = torch.nn.GRU(self.embedding_size, self.hidden_size, num_layers=self.num_layers,
-                                          batch_first=True, dropout=self.dropout_rate)
-        elif self.model_name == "LSTM":
-            self.LSTM_layer = torch.nn.LSTM(self.embedding_size, self.hidden_size, num_layers=self.num_layers,
-                                            batch_first=True, dropout=self.dropout_rate)
-        else:
-            raise NameError("model_name has to be 'GRU' or 'LSTM'")
-        self.rnn_output_layer = torch.nn.Sequential(
-            torch.nn.Linear(self.hidden_size, self.hidden_size),
+        transformerEncoder_layer = torch.nn.TransformerEncoderLayer(self.embedding_size, 8, dropout=self.dropout_rate, batch_first=True)
+        self.transformerEncoder = torch.nn.Sequential(
+            PositionalEncoding(self.embedding_size, self.input_dim, self.dropout_rate),
+            torch.nn.TransformerEncoder(transformerEncoder_layer, self.num_layers, norm=torch.nn.LayerNorm(self.embedding_size, eps=1e-5, elementwise_affine=True))
+        )
+        self.model_output_layer = torch.nn.Sequential(
+            torch.nn.Linear(self.embedding_size, self.hidden_size),
             torch.nn.ELU(),
             torch.nn.LayerNorm(self.hidden_size, eps=1e-5, elementwise_affine=True),
             torch.nn.Dropout(self.dropout_rate)
@@ -72,7 +87,7 @@ class LabelClassification(LightningModule):
         return [optim], [lr_scheduler]
 
     def configure_callbacks(self):
-        model_checkpoint = ModelCheckpoint(dirpath=f"../models/label_classifier/{'nll_' if self.use_nll else ''}{self.model_name}_model_ckp/",
+        model_checkpoint = ModelCheckpoint(dirpath=f"../models/label_classifier/{'nll_' if self.use_nll else ''}model_ckp/",
                                            filename='{epoch:02d}_{loss:.2f}', verbose=True, save_last=True, monitor='val_loss', mode='min')
         early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
         lr_monitor = LearningRateMonitor(logging_interval="step")
@@ -80,16 +95,8 @@ class LabelClassification(LightningModule):
 
     def forward(self, x):
         x = self.embedding_layer(x)
-        if self.model_name == "GRU":
-            h_0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
-            x, h = self.GRU_layer(x, h_0)
-        elif self.model_name == "LSTM":
-            h_0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
-            c_0 = torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
-            x, (h, c) = self.LSTM_layer(x, (h_0, c_0))
-        else:
-            raise NameError("model_name has to be 'GRU' or 'LSTM'")
-        x = self.rnn_output_layer(x)
+        x = self.transformerEncoder(x)
+        x = self.model_output_layer(x)
         output = self.output_layer(x.view(self.batch_size, self.input_dim*self.hidden_size))
         return output
 
@@ -147,7 +154,7 @@ class LabelClassification(LightningModule):
         loss = self.loss(y_pred, y)
         accuracy = self.accuracy(y_pred, y)
 
-        self.log('acc', accuracy, prog_bar=True, sync_dist=True)
+        self.log('acc', accuracy, prog_bar=True)
         return {'loss': loss, 'acc': accuracy}
 
     def validation_step(self, batch, batch_idx):
@@ -156,7 +163,7 @@ class LabelClassification(LightningModule):
         loss = self.loss(y_pred, y)
         accuracy = self.accuracy(y_pred, y)
 
-        self.log_dict({'val_loss': loss, 'val_acc': accuracy}, prog_bar=True, sync_dist=True)
+        self.log_dict({'val_loss': loss, 'val_acc': accuracy}, prog_bar=True)
         return {'val_loss': loss, 'val_acc': accuracy}
 
     def validation_epoch_end(self, outputs):
@@ -171,7 +178,6 @@ epochs = 50
 trainer = Trainer(max_epochs=epochs, gpus=torch.cuda.device_count(),
                   logger=TensorBoardLogger("../models/label_classifier/tensorboardLog/"))
 for use_nll in [False, True]:
-    for model_name in ["GRU", "LSTM"]:
-        model = LabelClassification(epochs, use_nll=use_nll, model_name=model_name)
-        trainer.fit(model)
-        torch.save(model.state_dict(), "../models/label_classifier/model_state/model_state.pt")
+    model = LabelClassification(epochs, use_nll=use_nll)
+    trainer.fit(model)
+    torch.save(model.state_dict(), "../models/label_classifier/model_state/model_state.pt")
