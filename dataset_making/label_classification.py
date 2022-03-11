@@ -11,7 +11,7 @@ from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 from transformers.optimization import get_cosine_schedule_with_warmup
-from transformers import ElectraTokenizerFast
+from transformers import GPT2TokenizerFast
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-e", type=int, default=50, dest="epochs", help="num of epochs")
@@ -64,7 +64,7 @@ class LabelClassification(LightningModule):
         self.label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
         self.train_set = None  # 3366
         self.val_set = None  # 436
-        self.tokenizer = ElectraTokenizerFast.from_pretrained("monologg/koelectra-base-v3-discriminator")
+        self.tokenizer = GPT2TokenizerFast.from_pretrained("../tokenizer")
         self.pad_token_id = self.tokenizer.pad_token_id
 
         self.embedding_layer = torch.nn.Sequential(
