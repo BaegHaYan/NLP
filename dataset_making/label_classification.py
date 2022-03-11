@@ -3,6 +3,7 @@ import re
 import torch
 import math
 import pandas as pd
+import argparse
 import pytorch_lightning as pl
 from torch.optim import AdamW
 from torch.utils.data import TensorDataset, DataLoader
@@ -11,6 +12,17 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 from transformers.optimization import get_cosine_schedule_with_warmup
 from transformers import ElectraTokenizerFast
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-e", type=int, default=50, dest="epochs", help="num of epochs")
+parser.add_argument("-b", type=int, default=32, dest="batch_size", help="size of each batch")
+parser.add_argument("-h", type=int, default=256, dest="hidden_size", help="size of hidden_state")
+parser.add_argument("-l", type=int, default=12, dest="num_layers", help="num of transfomer model encoder layers")
+parser.add_argument("-p", type=int, default=5, dest="patience", help="number of check with no improved")
+parser.add_argument("-lr", type=float, default=0.01, dest="learning_rate", help="learning rate")
+parser.add_argument("-dr", type=float, default=0.1, dest="dropout_rate", help="dropout rate")
+parser.add_argument("-wr", type=float, default=0.05, dest="warmup_ratio", help="warmup rate")
+parser.add_argument("--embedding-size", type=int, default=512, dest="embedding_size", help="size of embedding vector")
 
 class PositionalEncoding(torch.nn.Module):
     def __init__(self, model_dim, input_dim, dropout_rate):
@@ -29,25 +41,25 @@ class PositionalEncoding(torch.nn.Module):
     def forward(self, x: torch.tensor) -> torch.tensor:
         return self.dropout(x + self.pos_encoding[:x.size(0)])
 
-
 class LabelClassification(LightningModule):
-    def __init__(self, epochs: int, use_nll: bool = False):
+    def __init__(self, hparams, use_nll: bool = False):
         super(LabelClassification, self).__init__()
         self.RANDOM_SEED = 7777
         pl.seed_everything(self.RANDOM_SEED)
 
-        self.epochs = epochs
+        self.epochs = hparams.epochs
+        self.batch_size = hparams.batch_size
+        self.embedding_size = hparams.embedding_size
+        self.hidden_size = hparams.hidden_size
+        self.num_layers = hparams.num_layers
+        self.patience = hparams.patience
+        self.learning_rate = hparams.learning_rate
+        self.dropout_rate = hparams.dropout_rate
+        self.warmup_ratio = hparams.warmup_ratio
+
         self.use_nll = use_nll
-        self.batch_size = 32
         self.num_labels = 7
         self.input_dim = 55
-        self.learning_rate = 0.01
-        self.warmup_ratio = 0.05
-
-        self.embedding_size = 512
-        self.hidden_size = 256
-        self.dropout_rate = 0.1
-        self.num_layers = 12
 
         self.label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
         self.train_set = None  # 3366
@@ -83,13 +95,13 @@ class LabelClassification(LightningModule):
         num_train_steps = len(self.train_dataloader()) * self.epochs
         num_warmup_steps = int(num_train_steps * self.warmup_ratio)
         scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=num_train_steps)
-        lr_scheduler = {'scheduler': scheduler, 'name': 'ExponentialLR', 'monitor': 'loss', 'interval': 'step', 'frequency': 1}
+        lr_scheduler = {'scheduler': scheduler, 'name': 'cosine_schedule_with_warmup', 'monitor': 'loss', 'interval': 'step', 'frequency': 1}
         return [optim], [lr_scheduler]
 
     def configure_callbacks(self):
         model_checkpoint = ModelCheckpoint(dirpath=f"../models/label_classifier/{'nll_' if self.use_nll else ''}model_ckp/",
                                            filename='{epoch:02d}_{loss:.2f}', verbose=True, save_last=True, monitor='val_loss', mode='min')
-        early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=5)
+        early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=self.patience)
         lr_monitor = LearningRateMonitor(logging_interval="step")
         return [model_checkpoint, early_stopping, lr_monitor]
 
@@ -154,6 +166,7 @@ class LabelClassification(LightningModule):
         loss = self.loss(y_pred, y)
         accuracy = self.accuracy(y_pred, y)
 
+        self.log('loss', loss)
         self.log('acc', accuracy, prog_bar=True)
         return {'loss': loss, 'acc': accuracy}
 
@@ -174,10 +187,10 @@ class LabelClassification(LightningModule):
         return {'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc}
 
 
-epochs = 50
-trainer = Trainer(max_epochs=epochs, gpus=torch.cuda.device_count(),
-                  logger=TensorBoardLogger("../models/label_classifier/tensorboardLog/"))
+args = parser.parse_args()
 for use_nll in [False, True]:
-    model = LabelClassification(epochs, use_nll=use_nll)
+    trainer = Trainer(max_epochs=args.epochs, gpus=torch.cuda.device_count(),
+                      logger=TensorBoardLogger("../models/label_classifier/tensorboardLog/"))
+    model = LabelClassification(args, use_nll=use_nll)
     trainer.fit(model)
-    torch.save(model.state_dict(), "../models/label_classifier/model_state/model_state.pt")
+    torch.save(model.state_dict(), f"../models/label_classifier/model_state/{'nll_' if use_nll else ''}model_state.pt")
