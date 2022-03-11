@@ -8,30 +8,18 @@ import os
 
 if __name__ == "__main__":
     PREMODEL_NAME = "byeongal/Ko-DialoGPT"
-    RANDOM_SEED = 10
-    MAX_LEN = 201
+    RANDOM_SEED = 7777
+    MAX_LEN = None
 
-    def getDataset(isTrain: bool, using_device: str) -> List[Dict[str, torch.Tensor]]:
+    def getDataset(isTrain: bool, using_device: str) -> List[Dict[str, torch.Tensor]]:  # TODO
         torch.manual_seed(RANDOM_SEED)
         torch.cuda.manual_seed(RANDOM_SEED)
-
         if isTrain:
-            data_path = "../data/train.txt"
+            data_path = None
         else:
-            data_path = "../data/val.txt"
-
+            data_path = None
         encoded_data = []
-        data = pd.read_csv(data_path, sep="\t", names=["dialogue", "response"], header=0)
-        for d, r in zip(data["dialogue"], data["response"]):
-            temp_element = dict()
-
-            d_tok = tokenizer(d, return_tensors="pt", max_length=MAX_LEN, padding="max_length", truncation=True)
-            for k, v in d_tok.items():
-                temp_element[k] = v.to(using_device)
-            temp_element["labels"] = tokenizer(d+r, return_tensors="pt", max_length=MAX_LEN,
-                                               padding="max_length", truncation=True)["input_ids"].to(using_device)
-            # temp_element.keys() => ["input_ids", "attention_mask", "labels"]
-            encoded_data.append(temp_element)
+        pass
         return encoded_data
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -39,10 +27,10 @@ if __name__ == "__main__":
     batch_size = 16
 
     model = GPT2LMHeadModel.from_pretrained(PREMODEL_NAME).to(device)
-    tokenizer = GPT2TokenizerFast.from_pretrained("../tokenizer")
+    tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer")
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
-    log_dir = os.path.join('../logs', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+    log_dir = os.path.join('../../models/chat_model/trainer/logs', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     train_args = TrainingArguments(output_dir="../model/torch_models/traniner_model",
                                    logging_dir=log_dir,
                                    num_train_epochs=epochs,
