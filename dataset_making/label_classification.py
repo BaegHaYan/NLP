@@ -16,7 +16,7 @@ from transformers import GPT2TokenizerFast
 parser = argparse.ArgumentParser()
 parser.add_argument("-e", type=int, default=50, dest="epochs", help="num of epochs")
 parser.add_argument("-b", type=int, default=32, dest="batch_size", help="size of each batch")
-parser.add_argument("-h", type=int, default=256, dest="hidden_size", help="size of hidden_state")
+parser.add_argument("-hd", type=int, default=256, dest="hidden_size", help="size of hidden_state")
 parser.add_argument("-l", type=int, default=12, dest="num_layers", help="num of transfomer model encoder layers")
 parser.add_argument("-p", type=int, default=5, dest="patience", help="number of check with no improved")
 parser.add_argument("-lr", type=float, default=0.01, dest="learning_rate", help="learning rate")
@@ -41,9 +41,9 @@ class PositionalEncoding(torch.nn.Module):
     def forward(self, x: torch.tensor) -> torch.tensor:
         return self.dropout(x + self.pos_encoding[:x.size(0)])
 
-class LabelClassification(LightningModule):
+class LabelClassifier(LightningModule):
     def __init__(self, hparams, use_nll: bool = False):
-        super(LabelClassification, self).__init__()
+        super(LabelClassifier, self).__init__()
         self.RANDOM_SEED = 7777
         pl.seed_everything(self.RANDOM_SEED)
 
@@ -113,7 +113,7 @@ class LabelClassification(LightningModule):
         return output
 
     def loss(self, output, labels):
-        loss_func = torch.nn.CrossEntropyLoss() if not self.use_nll else torch.nn.NLLLoss()
+        loss_func = torch.nn.CrossEntropyLoss(ignore_index=self.pad_token_id) if not self.use_nll else torch.nn.NLLLoss(ignore_index=self.pad_token_id)
         return loss_func(output, labels)
 
     def accuracy(self, output, labels):
@@ -183,7 +183,7 @@ class LabelClassification(LightningModule):
         mean_loss = torch.stack([output['val_loss'] for output in outputs]).mean()
         mean_acc = torch.stack([output['val_acc'] for output in outputs]).mean()
 
-        self.log_dict({'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc}, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log_dict({'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc}, on_epoch=True, prog_bar=True)
         return {'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc}
 
 
@@ -191,6 +191,6 @@ args = parser.parse_args()
 for use_nll in [False, True]:
     trainer = Trainer(max_epochs=args.epochs, gpus=torch.cuda.device_count(),
                       logger=TensorBoardLogger("../models/label_classifier/tensorboardLog/"))
-    model = LabelClassification(args, use_nll=use_nll)
+    model = LabelClassifier(args, use_nll=use_nll)
     trainer.fit(model)
     torch.save(model.state_dict(), f"../models/label_classifier/model_state/{'nll_' if use_nll else ''}model_state.pt")
