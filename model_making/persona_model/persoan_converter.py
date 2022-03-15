@@ -1,10 +1,8 @@
 import setuptools
 import torch
-import logging
 import argparse
 import pandas as pd
 import pytorch_lightning as pl
-import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import TensorDataset, DataLoader

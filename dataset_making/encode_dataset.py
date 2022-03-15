@@ -1,12 +1,17 @@
+import setuptools
+from HaYan_NLP.model_making.persona_model.persoan_converter import PersonaConverter
+from HaYan_NLP.dataset_making.label_classification import LabelClassifier
 import pandas as pd
 import torch
 import os
 import re
-# TODO 모델 import
 
 class Dataset_encoder:
     def __init__(self):
-        self.persona_changer = None
+        self.label_classifier = LabelClassifier()
+        self.label_classifier.load_state_dict(torch.load("../models/label_classifier/model_state/model_state.pt"))
+        self.persona_changer = PersonaConverter()
+        self.persona_changer.load_state_dict(torch.load("../models/persona_converter/model_state/model_state.pt"))
         self.data_path = "../data/combined_dataset/"
 
     def encoding_dataset(self):

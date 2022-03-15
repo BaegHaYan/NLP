@@ -10,7 +10,7 @@ import os
 
 class Dataset_combiner:
     def __init__(self):
-        self.en_to_ko = pipeline("translation_en_to_ko", model=None)
+        self.en_to_ko = pipeline("translation_en_to_ko", model="../models/translation_en_to_ko/torch_model/pytorch_model.bin")
         self.ru_to_en = pipeline("translation_ru_to_en", model="Helsinki-NLP/opus-mt-ru-en")
 
         self.columns = ["D1", "R1", "D2", "R2", "D3", "R3", "D4", "R4", "D5", "R5"]
@@ -18,7 +18,8 @@ class Dataset_combiner:
         self.combine_raw_datasets()
 
     def combine_raw_datasets(self):
-        combine_functions = [self.processing_Chatbot_data,
+        combine_functions = [self.processing_lovers_data,
+                             self.processing_Chatbot_data,
                              self.processing_ConversationJSON_data,
                              self.processing_conversations_data,
                              self.processing_cornell_movie_data,
@@ -43,6 +44,9 @@ class Dataset_combiner:
         val.to_csv("../data/combined_dataset/val.txt", sep="\t", na_rep="None", encoding="UTF-8")
         test.to_csv("../data/combined_dataset/test.txt", sep="\t", na_rep="None", encoding="UTF-8")
         print("combining datasets were ended")
+
+    def processing_lovers_data(self) -> pd.DataFrame:
+        pass
 
     def processing_Chatbot_data(self) -> pd.DataFrame:
         raw_data = pd.read_csv("../data/raw_dataset/Chatbot/ChatbotData.csv", names=self.columns[:2]+["label"])

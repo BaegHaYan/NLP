@@ -1,45 +1,56 @@
 import setuptools
+import argparse
 from transformers import MBartForConditionalGeneration, MBartTokenizerFast
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from torch.utils.data import TensorDataset, DataLoader
-from torch.optim.lr_scheduler import MultiStepLR
+from torch.optim.lr_scheduler import ExponentialLR
 from sklearn.model_selection import train_test_split
+from transformers import AutoModelForSeq2SeqLM
 import pytorch_lightning as pl
 import pandas as pd
 import torch
 import os
 import re
-# TODO persoan chager import
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-e", type=int, default=5, dest="epochs", help="epochs")
+parser.add_argument("-g", type=float, default=0.5, dest="gamma", help="gamma")
+parser.add_argument("-lr", type=float, default=5e-5, dest="learning_rate", help="learning_rate")
+parser.add_argument("-b", type=int, default=32, dest="batch_size", help="batch_size")
+parser.add_argument("-p", type=int, default=5, dest="patience", help="patience")
 
 class Translater_en_to_ko(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, hparam):
         super(Translater_en_to_ko, self).__init__()
         self.RANDOM_SEED = 7777
         pl.seed_everything(self.RANDOM_SEED)
 
         self.model = MBartForConditionalGeneration.from_pretrained("facebook/mbart-large-cc25")
-        self.persona_changer = None
+        self.persona_changer = AutoModelForSeq2SeqLM.from_pretrained("../models/persona_converter/pytorch_model.bin")
         self.tokenizer = MBartTokenizerFast.from_pretrained("facebook/mbart-large-cc25")
         self.pad_token_id = self.tokenizer.pad_token_id
 
-        self.epochs = 10
-        self.gamma = 0.5
-        self.learning_rate = 5e-5
-        self.batch_size = 32
-        self.max_len_x = 82
-        self.max_len_y = 78
+        self.epochs = hparam.epochs
+        self.gamma = hparam.gamma
+        self.learning_rate = hparam.learning_rate
+        self.batch_size = hparam.batch_size
+        self.patience = hparam.patience
+        self.src_max_len = 82
+        self.trg_max_len = 78
 
         self.train_set = None
         self.val_set = None
 
     def configure_optimizers(self):
-        optim = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        lr_scheduler = MultiStepLR(optim, milestones=[int(self.epochs*0.3), int(self.epochs*0.6)], gamma=self.gamma)
+        optim = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
+
+        scheduler = ExponentialLR(optim, gamma=self.gamma)
+        lr_scheduler = {'scheduler': scheduler, 'name': 'ExponentialLR', 'monitor': 'loss', 'interval': 'step', 'frequency': 1}
         return [optim], [lr_scheduler]
 
     def configure_callbacks(self):
         check_point = ModelCheckpoint("../models/translater_en_to_ko/model_ckp/", monitor="val_acc", mode="max")
-        early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=3)
+        early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=self.patience)
         return [check_point, early_stopping]
 
     def forward(self, x):
@@ -100,7 +111,7 @@ class Translater_en_to_ko(pl.LightningModule):
         return sent
 
 
-model = Translater_en_to_ko()
+model = Translater_en_to_ko(parser.parse_args())
 trainer = pl.Trainer(max_epochs=model.epochs, gpus=torch.cuda.device_count())
 
 trainer.fit(model)
