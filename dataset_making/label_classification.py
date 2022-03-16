@@ -5,7 +5,7 @@ import math
 import pandas as pd
 import argparse
 import pytorch_lightning as pl
-from torch.optim import AdamW
+from torch.functional import F
 from torch.utils.data import TensorDataset, DataLoader
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -42,7 +42,7 @@ class PositionalEncoding(torch.nn.Module):
         return self.dropout(x + self.pos_encoding[:x.size(0)])
 
 class LabelClassifier(LightningModule):
-    def __init__(self, hparams, use_nll: bool = False):
+    def __init__(self, hparams):
         super(LabelClassifier, self).__init__()
         self.RANDOM_SEED = 7777
         pl.seed_everything(self.RANDOM_SEED)
@@ -57,7 +57,6 @@ class LabelClassifier(LightningModule):
         self.learning_rate = hparams.learning_rate
         self.dropout_rate = hparams.dropout_rate
 
-        self.use_nll = use_nll
         self.num_labels = 7
         self.input_dim = 55
 
@@ -69,28 +68,31 @@ class LabelClassifier(LightningModule):
 
         self.embedding_layer = torch.nn.Sequential(
             torch.nn.Embedding(self.tokenizer.vocab_size, self.embedding_size, self.pad_token_id),
-            torch.nn.Linear(self.embedding_size, self.embedding_size),
-            torch.nn.ELU(),
-            torch.nn.LayerNorm(self.embedding_size, eps=1e-5, elementwise_affine=True)
+            torch.nn.LayerNorm(self.embedding_size, eps=1e-5)
         )
-        transformerEncoder_layer = torch.nn.TransformerEncoderLayer(self.embedding_size, 8, dropout=self.dropout_rate, batch_first=True)
+        transformerEncoder_layer = torch.nn.TransformerEncoderLayer(self.embedding_size, 8, dropout=self.dropout_rate, activation=F.relu, batch_first=True)
         self.transformerEncoder = torch.nn.Sequential(
             PositionalEncoding(self.embedding_size, self.input_dim, self.dropout_rate),
-            torch.nn.TransformerEncoder(transformerEncoder_layer, self.num_layers, norm=torch.nn.LayerNorm(self.embedding_size, eps=1e-5, elementwise_affine=True))
+            torch.nn.TransformerEncoder(transformerEncoder_layer, self.num_layers, norm=torch.nn.LayerNorm(self.embedding_size, eps=1e-5, elementwise_affine=True)),
+            torch.nn.Tanh()
         )
         self.model_output_layer = torch.nn.Sequential(
             torch.nn.Linear(self.embedding_size, self.hidden_size),
-            torch.nn.ELU(),
+            torch.nn.ReLU(),
             torch.nn.LayerNorm(self.hidden_size, eps=1e-5, elementwise_affine=True),
             torch.nn.Dropout(self.dropout_rate)
         )
         self.output_layer = torch.nn.Sequential(
-            torch.nn.Linear(self.input_dim*self.hidden_size, self.num_labels),
-            torch.nn.Softmax(dim=1) if not self.use_nll else torch.nn.LogSoftmax(dim=1)
+            torch.nn.Linear(self.hidden_size, self.hidden_size*2),
+            torch.nn.Tanh(),
+            torch.nn.Linear(self.hidden_size*2, self.hidden_size),
+            torch.nn.Tanh(),
+            torch.nn.Linear(self.hidden_size, self.num_labels)
         )
 
     def configure_optimizers(self):
-        optim = AdamW(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
+        # optim = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
+        optim = torch.optim.RMSprop(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
 
         scheduler = ExponentialLR(optim, gamma=self.gamma)
         lr_scheduler = {'scheduler': scheduler, 'name': 'Exponential', 'monitor': 'loss', 'interval': 'step', 'frequency': 1}
@@ -107,12 +109,11 @@ class LabelClassifier(LightningModule):
         x = self.embedding_layer(x)
         x = self.transformerEncoder(x)
         x = self.model_output_layer(x)
-        output = self.output_layer(x.view(self.batch_size, self.input_dim*self.hidden_size))
-        return output
+        output = self.output_layer(x)
+        return F.log_softmax(torch.sum(output, 1), 1)
 
     def loss(self, output, labels):
-        loss_func = torch.nn.CrossEntropyLoss(ignore_index=self.pad_token_id) if not self.use_nll else torch.nn.NLLLoss(ignore_index=self.pad_token_id)
-        return loss_func(output, labels)
+        return torch.nn.NLLLoss(ignore_index=self.pad_token_id)(output, labels)
 
     def accuracy(self, output, labels):
         output = torch.argmax(output, dim=1)
@@ -186,9 +187,7 @@ class LabelClassifier(LightningModule):
 
 
 args = parser.parse_args()
-for use_nll in [False, True]:
-    trainer = Trainer(max_epochs=args.epochs, gpus=torch.cuda.device_count(),
-                      logger=TensorBoardLogger("../models/label_classifier/tensorboardLog/"))
-    model = LabelClassifier(args, use_nll=use_nll)
-    trainer.fit(model)
-    torch.save(model.state_dict(), f"../models/label_classifier/model_state/{'nll_' if use_nll else ''}model_state.pt")
+trainer = Trainer(max_epochs=args.epochs, gpus=torch.cuda.device_count(), logger=TensorBoardLogger("../models/label_classifier/tensorboardLog/"))
+model = LabelClassifier(args)
+trainer.fit(model)
+torch.save(model.state_dict(), f"../models/label_classifier/model_state/model_state.pt")
