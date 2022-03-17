@@ -14,15 +14,6 @@ from torch.optim.lr_scheduler import ExponentialLR
 from transformers import GPT2TokenizerFast
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-e", type=int, default=50, dest="epochs", help="num of epochs")
-parser.add_argument("-b", type=int, default=32, dest="batch_size", help="size of each batch")
-parser.add_argument("-hd", type=int, default=256, dest="hidden_size", help="size of hidden_state")
-parser.add_argument("-l", type=int, default=6, dest="num_layers", help="num of transfomer model encoder layers")
-parser.add_argument("-p", type=int, default=5, dest="patience", help="number of check with no improved")
-parser.add_argument("-lr", type=float, default=0.1, dest="learning_rate", help="learning rate")
-parser.add_argument("-dr", type=float, default=0.1, dest="dropout_rate", help="dropout rate")
-parser.add_argument("-gamma", type=float, default=0.9, dest="gamma", help="decay rate of learning_rate on each epoch")
-parser.add_argument("--embedding-size", type=int, default=512, dest="embedding_size", help="size of embedding vector")
 
 class PositionalEncoding(torch.nn.Module):
     def __init__(self, model_dim, input_dim, dropout_rate):
@@ -59,6 +50,7 @@ class LabelClassifier(LightningModule):
 
         self.num_labels = 7
         self.input_dim = 55
+        self._frozen = True
 
         self.label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
         self.train_set = None  # 3366
@@ -74,7 +66,6 @@ class LabelClassifier(LightningModule):
         self.transformerEncoder = torch.nn.Sequential(
             PositionalEncoding(self.embedding_size, self.input_dim, self.dropout_rate),
             torch.nn.TransformerEncoder(transformerEncoder_layer, self.num_layers, norm=torch.nn.LayerNorm(self.embedding_size, eps=1e-5, elementwise_affine=True)),
-            torch.nn.Tanh()
         )
         self.model_output_layer = torch.nn.Sequential(
             torch.nn.Linear(self.embedding_size, self.hidden_size),
@@ -91,19 +82,28 @@ class LabelClassifier(LightningModule):
         )
 
     def configure_optimizers(self):
-        # optim = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
-        optim = torch.optim.RMSprop(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
+        optim = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
 
-        scheduler = ExponentialLR(optim, gamma=self.gamma)
-        lr_scheduler = {'scheduler': scheduler, 'name': 'Exponential', 'monitor': 'loss', 'interval': 'step', 'frequency': 1}
+        lr_scheduler = ExponentialLR(optim, gamma=self.gamma)
         return [optim], [lr_scheduler]
 
     def configure_callbacks(self):
-        model_checkpoint = ModelCheckpoint(dirpath=f"../models/label_classifier/{'nll_' if self.use_nll else ''}model_ckp/",
+        model_checkpoint = ModelCheckpoint(dirpath=f"../models/label_classifier/model_ckp/",
                                            filename='{epoch:02d}_{loss:.2f}', verbose=True, save_last=True, monitor='val_loss', mode='min')
         early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=self.patience)
         lr_monitor = LearningRateMonitor(logging_interval="step")
         return [model_checkpoint, early_stopping, lr_monitor]
+
+    def unfreeze_model(self):
+        if self._frozen:
+            for param in self.parameters():
+                param.requires_grad = True
+            self._frozen = False
+
+    def freeze_model(self):
+        for param in self.parameters():
+            param.requires_grad = False
+        self._frozen = True
 
     def forward(self, x):
         x = self.embedding_layer(x)
@@ -154,6 +154,7 @@ class LabelClassifier(LightningModule):
         self.val_set = TensorDataset(val_x["input_ids"].to(self.device), val_Y.to(self.device))
 
     def train_dataloader(self):
+        self.unfreeze_model()
         return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True, drop_last=True)
 
     def val_dataloader(self):
@@ -185,9 +186,29 @@ class LabelClassifier(LightningModule):
         self.log_dict({'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc}, on_epoch=True, prog_bar=True)
         return {'avg_val_loss': mean_loss, 'avg_val_acc': mean_acc}
 
+    @staticmethod
+    def set_hparam(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        parser.add_argument("-e", type=int, default=50, dest="epochs", help="num of epochs")
+        parser.add_argument("-b", type=int, default=32, dest="batch_size", help="size of each batch")
+        parser.add_argument("-hd", type=int, default=256, dest="hidden_size", help="size of hidden_state")
+        parser.add_argument("-l", type=int, default=6, dest="num_layers", help="num of transfomer model encoder layers")
+        parser.add_argument("-p", type=int, default=5, dest="patience", help="number of check with no improved")
+        parser.add_argument("-lr", type=float, default=0.1, dest="learning_rate", help="learning rate")
+        parser.add_argument("-dr", type=float, default=0.1, dest="dropout_rate", help="dropout rate")
+        parser.add_argument("-gamma", type=float, default=0.9, dest="gamma",
+                            help="decay rate of learning_rate on each epoch")
+        parser.add_argument("--embedding-size", type=int, default=512, dest="embedding_size",
+                            help="size of embedding vector")
+        return parser
 
+    def predict(self, x):
+        self.freeze_model()
+        return self(x)
+
+
+parser = LabelClassifier.set_hparam(parser)
 args = parser.parse_args()
 trainer = Trainer(max_epochs=args.epochs, gpus=torch.cuda.device_count(), logger=TensorBoardLogger("../models/label_classifier/tensorboardLog/"))
 model = LabelClassifier(args)
 trainer.fit(model)
-torch.save(model.state_dict(), f"../models/label_classifier/model_state/model_state.pt")
+torch.save(model.state_dict(), "../models/label_classifier/model_state/model_state.pt")
