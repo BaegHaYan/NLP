@@ -1,12 +1,12 @@
 from transformers import ElectraForSequenceClassification, ElectraTokenizerFast
 from transformers import Trainer, TrainingArguments, DataCollatorWithPadding
-from torch.utils.data import TensorDataset
 import pandas as pd
 import datetime
 import torch
 import re
 import os
 
+MAX_LEN = 55
 PREMODEL_NAME = "monologg/koelectra-base-v3-discriminator"
 RANDOM_SEED = 7777
 label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
@@ -21,10 +21,8 @@ def getDataset(isTrain: bool, using_device: str):
     else:
         data_path = "../data/label_classification_dataset/val/val_data1.txt"
 
+    encoded_data = []
     data = pd.read_csv(data_path, sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
-
-    x = []
-    Y = []
     for _, row in data.iterrows():
         for s in row:
             if any(label in s for label in label_dict.keys()):
@@ -32,12 +30,14 @@ def getDataset(isTrain: bool, using_device: str):
                 s = re.sub('(\[.*])', r'\1 ', s)
                 if re.search('(\[.*])', s) is None:
                     break
-                x.append(" ".join(s.split()[1:]))
-                Y.append(label_dict[s.split()[0]])
-    x = tokenizer.batch_encode_plus(x, padding=True, return_tensors="pt")
-    Y = torch.LongTensor(Y)
-    dataset = TensorDataset(x["input_ids"], Y)
-    return dataset
+
+                temp_data = dict()
+                x = tokenizer(" ".join(s.split()[1:]), return_tensors="pt", max_length=MAX_LEN, padding="max_length", truncation=True)
+                for k, v in x.items():
+                    temp_data[k] = v[0].to(using_device)
+                temp_data['labels'] = label_dict[s.split()[0]]
+                encoded_data.append(temp_data)
+    return encoded_data
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
