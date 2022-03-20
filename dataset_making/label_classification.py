@@ -15,6 +15,17 @@ from transformers import GPT2TokenizerFast
 
 parser = argparse.ArgumentParser()
 
+class InputMonitor(pl.Callback):
+    def __init__(self):
+        super(InputMonitor, self).__init__()
+
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx: int, unused=0) -> None:
+        if (batch_idx + 1) % trainer.log_every_n_steps == 0:
+            x, y = batch
+            logger = trainer.logger
+            logger.experiment.add_histogram("input", x, global_step=trainer.global_step)
+            logger.experiment.add_histogram("target", y, global_step=trainer.global_step)
+
 class PositionalEncoding(torch.nn.Module):
     def __init__(self, model_dim, input_dim, dropout_rate):
         super(PositionalEncoding, self).__init__()
@@ -47,10 +58,17 @@ class LabelClassifier(LightningModule):
         self.gamma = hparams.gamma
         self.learning_rate = hparams.learning_rate
         self.dropout_rate = hparams.dropout_rate
+        self.is_train = hparams.train
+        self._frozen = True
+
+        if self.is_train:
+            self.unfreeze_model()
+        else:
+            self.eval()
+            self.freeze_model()
 
         self.num_labels = 7
         self.input_dim = 55
-        self._frozen = True
 
         self.label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
         self.train_set = None  # 3366
@@ -82,17 +100,20 @@ class LabelClassifier(LightningModule):
         )
 
     def configure_optimizers(self):
-        optim = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
+        adam = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
+        rms_prop = torch.optim.RMSprop(self.parameters(), lr=self.learning_rate, weight_decay=0.1)
 
-        lr_scheduler = ExponentialLR(optim, gamma=self.gamma)
-        return [optim], [lr_scheduler]
+        lr_scheduler_adam = ExponentialLR(adam, gamma=self.gamma)
+        lr_scheduler_rms = ExponentialLR(rms_prop, gamma=self.gamma)
+        return [adam, rms_prop], [lr_scheduler_adam, lr_scheduler_rms]
 
     def configure_callbacks(self):
         model_checkpoint = ModelCheckpoint(dirpath=f"../models/label_classifier/model_ckp/",
                                            filename='{epoch:02d}_{loss:.2f}', verbose=True, save_last=True, monitor='val_loss', mode='min')
         early_stopping = EarlyStopping(monitor="val_loss", mode="min", patience=self.patience)
         lr_monitor = LearningRateMonitor(logging_interval="step")
-        return [model_checkpoint, early_stopping, lr_monitor]
+        input_monitor = InputMonitor()
+        return [model_checkpoint, early_stopping, lr_monitor, input_monitor]
 
     def unfreeze_model(self):
         if self._frozen:
@@ -110,10 +131,10 @@ class LabelClassifier(LightningModule):
         x = self.transformerEncoder(x)
         x = self.model_output_layer(x)
         output = self.output_layer(x)
-        return F.log_softmax(torch.sum(output, 1), 1)
+        return F.softmax(torch.sum(output, 1), 1)
 
     def loss(self, output, labels):
-        return torch.nn.NLLLoss(ignore_index=self.pad_token_id)(output, labels)
+        return torch.nn.CrossEntropyLoss(ignore_index=self.pad_token_id)(output, labels)
 
     def accuracy(self, output, labels):
         output = torch.argmax(output, dim=1)
@@ -154,7 +175,6 @@ class LabelClassifier(LightningModule):
         self.val_set = TensorDataset(val_x["input_ids"].to(self.device), val_Y.to(self.device))
 
     def train_dataloader(self):
-        self.unfreeze_model()
         return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True, drop_last=True)
 
     def val_dataloader(self):
@@ -191,18 +211,16 @@ class LabelClassifier(LightningModule):
         parser.add_argument("-e", type=int, default=50, dest="epochs", help="num of epochs")
         parser.add_argument("-b", type=int, default=32, dest="batch_size", help="size of each batch")
         parser.add_argument("-hd", type=int, default=256, dest="hidden_size", help="size of hidden_state")
-        parser.add_argument("-l", type=int, default=6, dest="num_layers", help="num of transfomer model encoder layers")
+        parser.add_argument("-l", type=int, default=12, dest="num_layers", help="num of transfomer model encoder layers")
         parser.add_argument("-p", type=int, default=5, dest="patience", help="number of check with no improved")
         parser.add_argument("-lr", type=float, default=0.1, dest="learning_rate", help="learning rate")
         parser.add_argument("-dr", type=float, default=0.1, dest="dropout_rate", help="dropout rate")
-        parser.add_argument("-gamma", type=float, default=0.9, dest="gamma",
-                            help="decay rate of learning_rate on each epoch")
-        parser.add_argument("--embedding-size", type=int, default=512, dest="embedding_size",
-                            help="size of embedding vector")
+        parser.add_argument("-gamma", type=float, default=0.9, dest="gamma", help="decay rate of learning_rate on each epoch")
+        parser.add_argument("--embedding-size", type=int, default=512, dest="embedding_size", help="size of embedding vector")
+        parser.add_argument("-training", type=bool, default=False, dest="train", help="condiiton about this model for training")
         return parser
 
     def predict(self, x):
-        self.freeze_model()
         return self(x)
 
 
