@@ -11,6 +11,13 @@ PREMODEL_NAME = "monologg/koelectra-base-v3-discriminator"
 RANDOM_SEED = 7777
 label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
 
+def accuracy(pred):
+    labels = pred.label_ids
+    output = pred.predictions
+
+    output = torch.argmax(output, dim=1)
+    output = torch.sum(output == labels) / output.__len__() * 100  # %(Precentage)
+    return {'accuracy': output}
 
 def getDataset(isTrain: bool, using_device: str):
     torch.manual_seed(RANDOM_SEED)
@@ -56,9 +63,16 @@ train_args = TrainingArguments(output_dir="../models/label_classifier/trainer/ou
                                per_device_eval_batch_size=batch_size,
                                learning_rate=3e-5,
                                weight_decay=0.01,
+                               do_train=True,
+                               do_eval=True,
+                               gradient_accumulation_steps=16,
+                               logging_steps=128,
+                               eval_steps=128,
+                               save_steps=128,
+                               save_total_limit=10,
                                )
 
-trainer = Trainer(model=model, args=train_args, tokenizer=tokenizer, data_collator=data_collator,
+trainer = Trainer(model=model, args=train_args, tokenizer=tokenizer, data_collator=data_collator, compute_metrics=accuracy,
                   train_dataset=getDataset(isTrain=True, using_device=device),
                   eval_dataset=getDataset(isTrain=False, using_device=device))
 trainer.train()
