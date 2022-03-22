@@ -1,7 +1,11 @@
+import transformers.integrations
 from transformers import ElectraForSequenceClassification, ElectraTokenizerFast
 from transformers import Trainer, TrainingArguments, DataCollatorWithPadding
+from transformers.integrations import TensorBoardCallback
+from transformers import PrinterCallback
 import pandas as pd
 import datetime
+import logging
 import torch
 import re
 import os
@@ -15,7 +19,7 @@ def accuracy(pred):
     labels = pred.label_ids
     output = pred.predictions
 
-    output = torch.argmax(output, dim=1)
+    output = torch.argmax(torch.LongTensor(output), dim=1)
     output = torch.sum(output == labels) / output.__len__() * 100  # %(Precentage)
     return {'accuracy': output}
 
@@ -58,15 +62,20 @@ data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 log_dir = os.path.join('../models/label_classifier/trainer/log/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
 train_args = TrainingArguments(output_dir="../models/label_classifier/trainer/output_dir/",
                                logging_dir=log_dir,
+                               do_train=True,
+                               do_eval=True,
                                learning_rate=3e-5,
                                per_device_train_batch_size=batch_size,
                                per_device_eval_batch_size=batch_size,
                                num_train_epochs=epochs,
                                weight_decay=0.01,
                                load_best_model_at_end=True,
+                               evaluation_strategy="epoch",
+                               save_strategy="epoch",
                                )
 
 trainer = Trainer(model=model, args=train_args, data_collator=data_collator, compute_metrics=accuracy,
+                  callbacks=[PrinterCallback(), TensorBoardCallback()],
                   train_dataset=getDataset(isTrain=True, using_device=device),
                   eval_dataset=getDataset(isTrain=False, using_device=device))
 trainer.train()
