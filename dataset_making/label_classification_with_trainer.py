@@ -2,7 +2,7 @@ import transformers.integrations
 from transformers import ElectraForSequenceClassification, ElectraTokenizerFast
 from transformers import Trainer, TrainingArguments, DataCollatorWithPadding
 from transformers.integrations import TensorBoardCallback
-from transformers import PrinterCallback
+from transformers import PrinterCallback, TrainerCallback
 import pandas as pd
 import datetime
 import logging
@@ -16,10 +16,10 @@ RANDOM_SEED = 7777
 label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
 
 def accuracy(pred):
-    labels = pred.label_ids
-    output = pred.predictions
+    labels = torch.from_numpy(pred.label_ids)
+    output = torch.from_numpy(pred.predictions)
 
-    output = torch.argmax(torch.LongTensor(output), dim=1)
+    output = torch.argmax(output, dim=1)
     output = torch.sum(output == labels) / output.__len__() * 100  # %(Precentage)
     return {'accuracy': output}
 
@@ -53,7 +53,7 @@ def getDataset(isTrain: bool, using_device: str):
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 epochs = 10
-batch_size = 16
+batch_size = 32
 
 model = ElectraForSequenceClassification.from_pretrained(PREMODEL_NAME, num_labels=7).to(device)
 tokenizer = ElectraTokenizerFast.from_pretrained(PREMODEL_NAME)
@@ -71,7 +71,7 @@ train_args = TrainingArguments(output_dir="../models/label_classifier/trainer/ou
                                weight_decay=0.01,
                                load_best_model_at_end=True,
                                evaluation_strategy="epoch",
-                               save_strategy="epoch",
+                               # save_strategy="epoch",  # it makes error in pyCharm, but it prevents error in colab
                                )
 
 trainer = Trainer(model=model, args=train_args, data_collator=data_collator, compute_metrics=accuracy,
