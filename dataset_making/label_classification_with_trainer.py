@@ -58,21 +58,15 @@ data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 log_dir = os.path.join('../models/label_classifier/trainer/log/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
 train_args = TrainingArguments(output_dir="../models/label_classifier/trainer/output_dir/",
                                logging_dir=log_dir,
-                               num_train_epochs=epochs,
+                               learning_rate=3e-5,
                                per_device_train_batch_size=batch_size,
                                per_device_eval_batch_size=batch_size,
-                               learning_rate=3e-5,
+                               num_train_epochs=epochs,
                                weight_decay=0.01,
-                               do_train=True,
-                               do_eval=True,
-                               gradient_accumulation_steps=16,
-                               logging_steps=128,
-                               eval_steps=128,
-                               save_steps=128,
-                               save_total_limit=10,
+                               load_best_model_at_end=True,
                                )
 
-trainer = Trainer(model=model, args=train_args, tokenizer=tokenizer, data_collator=data_collator, compute_metrics=accuracy,
+trainer = Trainer(model=model, args=train_args, data_collator=data_collator, compute_metrics=accuracy,
                   train_dataset=getDataset(isTrain=True, using_device=device),
                   eval_dataset=getDataset(isTrain=False, using_device=device))
 trainer.train()
