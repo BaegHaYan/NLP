@@ -68,7 +68,7 @@
     },
     {
       "id": 7,
-      "content": "<unused0>",
+      "content": "[HAPPY]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -77,7 +77,7 @@
     },
     {
       "id": 8,
-      "content": "<unused1>",
+      "content": "[PANIC]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -86,7 +86,7 @@
     },
     {
       "id": 9,
-      "content": "<unused2>",
+      "content": "[ANGRY]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -95,7 +95,7 @@
     },
     {
       "id": 10,
-      "content": "<unused3>",
+      "content": "[UNSTABLE]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -104,7 +104,7 @@
     },
     {
       "id": 11,
-      "content": "<unused4>",
+      "content": "[HURT]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -113,7 +113,7 @@
     },
     {
       "id": 12,
-      "content": "<unused5>",
+      "content": "[SAD]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -122,7 +122,7 @@
     },
     {
       "id": 13,
-      "content": "<unused6>",
+      "content": "[NEUTRAL]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
