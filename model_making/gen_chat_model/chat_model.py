@@ -56,7 +56,7 @@ class ChatModel(LightningModule):
         self.dropout_rate = hparams.dropout_rate
         self.warmup_ratio = hparams.warmup_ratio
 
-        self.tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer")
+        self.tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer/GPT")
         self.pad_token_id = self.tokenizer.pad_token_id
         self.src_dim = None
         self.target_dim = None

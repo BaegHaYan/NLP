@@ -27,7 +27,7 @@ if __name__ == "__main__":
     batch_size = 16
 
     model = GPT2LMHeadModel.from_pretrained(PREMODEL_NAME).to(device)
-    tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer")
+    tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer/GPT")
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     log_dir = os.path.join('../../models/chat_model/trainer/logs', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))

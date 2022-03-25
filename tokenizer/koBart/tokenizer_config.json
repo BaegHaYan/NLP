@@ -1,0 +1,1 @@
+{"special_tokens_map_file": "/root/.cache/huggingface/transformers/a87d2ed77831bb40ce806a97c04126addf5ecc82b3e23ecf916b2a4acdb9c29a.c23d5e62137984cf842a885705037b25b156747d145406702932d5f5d5e7c88e", "name_or_path": "hyunwoongko/kobart", "tokenizer_class": "PreTrainedTokenizerFast", "model_input_names": ["input_ids", "attention_mask"]}

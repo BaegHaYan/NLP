@@ -73,7 +73,7 @@ class LabelClassifier(LightningModule):
         self.label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
         self.train_set = None  # 3366
         self.val_set = None  # 436
-        self.tokenizer = GPT2TokenizerFast.from_pretrained("../tokenizer")
+        self.tokenizer = GPT2TokenizerFast.from_pretrained("../tokenizer/GPT")
         self.pad_token_id = self.tokenizer.pad_token_id
 
         self.embedding_layer = torch.nn.Sequential(
