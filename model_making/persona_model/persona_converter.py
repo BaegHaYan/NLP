@@ -42,9 +42,9 @@ def getDataset(isTrain: bool, using_device: str):
                 encoded_dict[k] = v[0].to(using_device)
 
             encoded_dict["decoder_input_ids"] = tokenizer.encode(tokenizer.cls_token + persona, max_length=trg_input_dim,
-                                                                 padding="max_length", truncation=True, return_tensors="pt")
+                                                                 padding="max_length", truncation=True, return_tensors="pt")[0]
             encoded_dict["labels"] = tokenizer.encode(persona + tokenizer.sep_token, max_length=trg_input_dim,
-                                                      padding="max_length", truncation=True, return_tensors="pt")
+                                                      padding="max_length", truncation=True, return_tensors="pt")[0]
             encoded_data.append(encoded_dict)
     return encoded_data
 
