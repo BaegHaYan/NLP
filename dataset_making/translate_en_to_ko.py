@@ -46,8 +46,8 @@ model = MBartForConditionalGeneration.from_pretrained(PREMODEL_NAME, num_labels=
 tokenizer = MBartTokenizerFast.from_pretrained(PREMODEL_NAME, src_lang="en_XX", tgt_lang="ko_KR")
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
-log_dir = os.path.join('../../models/en_to_ko_translator/trainer/logs/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-train_args = TrainingArguments(output_dir="../../models/en_to_ko_translator/trainer/output_dir/",
+log_dir = os.path.join('../../models/translator_en_to_ko/trainer/logs/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+train_args = TrainingArguments(output_dir="../../models/translator_en_to_ko/trainer/output_dir/",
                                logging_dir=log_dir,
                                do_train=True,
                                do_eval=True,
@@ -66,4 +66,4 @@ trainer = Trainer(model=model, args=train_args, data_collator=data_collator,
                   callbacks=[PrinterCallback(), TensorBoardCallback()],
                   train_dataset=train, eval_dataset=val)
 trainer.train()
-torch.save(model, "../../models/persona_converter/trainer/pytorch_model.bin")
+torch.save(model, "../../models/translator_en_to_ko/trainer/pytorch_model.bin")
