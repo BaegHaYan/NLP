@@ -11,6 +11,7 @@ import pandas as pd
 class Persona_classification(torch.nn.Module):
     def __init__(self, hparams: argparse.Namespace):
         super(Persona_classification, self).__init__()
+        self.tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer/GPT")
 
         self.input_dim = 30  # consider changing model to LSTM/CNN(input has short dim)
         self.embedding_dim = hparams.embedding_dim
@@ -37,6 +38,16 @@ class Persona_classification(torch.nn.Module):
         x = self.embed_layer(x)
         x = self.transformer_encoder_layer(x)
         output = self.output_layer(x)
+        return output
+
+    def predict(self, sent: str):
+        input_dim = 30
+        x = self.tokenizer.encode(sent, max_length=input_dim, padding="max_length", truncation=True)["input_ids"]
+
+        output = self(x)
+        output = output.view(1, -1)
+        output = torch.sum(output, dim=1)
+        output = torch.sigmoid(output)
         return output
 
     @staticmethod
