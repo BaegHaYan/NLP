@@ -102,8 +102,8 @@ if __name__ == "__main__":
 
     model = Persona_classification(hparams).to(device)
     tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer/GPT")
-    accuracy = torchmetrics.Accuracy()
-    loss_func = torch.nn.BCELoss()
+    accuracy = torchmetrics.Accuracy().to(device)
+    loss_func = torch.nn.BCELoss().to(device)
     optim = torch.optim.AdamW(model.parameters(), lr=hparams.lr)
 
     constant_scheduler = ConstantLR(optim, factor=hparams.factor)
@@ -136,18 +136,19 @@ if __name__ == "__main__":
             for batch in val_loader:
                 x, Y = batch
                 pred = model(x)
+                pred = pred.view(hparams.batch_size, -1)
                 pred = torch.sum(pred, dim=1)
                 pred = torch.sigmoid(pred)
 
                 val_loss.append(loss_func(pred, Y).item())
                 val_acc.append(accuracy(pred, Y.type(torch.int)).item())
             val_loss = torch.mean(torch.tensor(val_loss))
-            val_acc = torch.mean(torch.tensor(val_acc))
+            val_acc = torch.mean(torch.tensor(val_acc)) * 100
             logger.info(f"Epochs {i+1} : val_loss - %.4f, val_acc - %.4f)" % (val_loss.item(), val_acc.item()))
 
-            if val_loss > best_metrics:
-                logger.info(f"val_loss has achieved the best : {best_metrics} to {val_loss}")
-                best_metrics = val_loss
+            if val_acc > best_metrics:
+                logger.info(f"val_loss has achieved the best : {best_metrics} to {val_acc}")
+                best_metrics = val_acc
 
                 torch.save(model.state_dict(), "../../models/persona_classifier/best_model_state.pt")
                 logger.info("the model state was saved.")
