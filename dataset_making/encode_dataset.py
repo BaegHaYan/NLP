@@ -15,6 +15,7 @@ class Dataset_encoder:
         self.persona_convertor = BartForConditionalGeneration.from_pretrained("../models/persona_converter/trainer")
         self.persona_tokenizer = BartTokenizerFast.from_pretrained("../tokenizer/koBart")
         self.data_path = "../data/combined_dataset/"
+        self.encoding_dataset()
 
     def encoding_dataset(self):
         for file_name in os.listdir(self.data_path):
