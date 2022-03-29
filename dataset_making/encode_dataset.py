@@ -1,17 +1,19 @@
 import setuptools
-from transformers import ElectraForSequenceClassification
-import logging
+from transformers import ElectraForSequenceClassification, BartForConditionalGeneration
+from transformers import ElectraTokenizerFast, BartTokenizerFast
 import pandas as pd
+import logging
 import torch
 import os
 import re
 
 class Dataset_encoder:
     def __init__(self):
-        # self.label_classifier = ElectraForSequenceClassification.from_pretrained()
-        # self.label_classifier.load_state_dict(torch.load("../models/label_classifier/model_state/model_state.pt"))
-        # self.persona_changer = PersonaConverter()
-        # self.persona_changer.load_state_dict(torch.load("../models/persona_converter/model_state/model_state.pt"))
+        self.label_dict = {0: '[HAPPY]', 1: '[PANIC]', 2: '[ANGRY]', 3: '[UNSTABLE]', 4: '[HURT]', 5: '[SAD]', 6: '[NEUTRAL]'}
+        self.label_classifier = ElectraForSequenceClassification.from_pretrained("../models/label_classifier/trainer")
+        self.label_tokenizer = ElectraTokenizerFast.from_pretrained("../tokenizer/GPT")
+        self.persona_convertor = BartForConditionalGeneration.from_pretrained("../models/persona_converter/trainer")
+        self.persona_tokenizer = BartTokenizerFast.from_pretrained("../tokenizer/koBart")
         self.data_path = "../data/combined_dataset/"
 
     def encoding_dataset(self):
@@ -21,6 +23,8 @@ class Dataset_encoder:
                 data[col] = data[col].apply(lambda x: re.sub("[^가-힣0-9a-zA-z,.?! ]", "", x))
                 if "R" in col:
                     data[col] = data[col].apply(lambda x: self.change_persona(x))
+                else:
+                    data[col] = data[col].apply(lambda x: self.label_classification(x))
             encoded_data = pd.DataFrame(columns=["Q", "A"])
             for _, row in data.iterrows():
                 q_list = []
@@ -32,8 +36,19 @@ class Dataset_encoder:
                     q_list.append(row[idx])
             data.to_csv("../data/"+file_name, sep="\t", encoding="UTF-8")
 
-    def change_persona(self, data):
-        return self.persona_changer(data)
+    def label_classification(self, data: str) -> str:
+        inputs = self.label_tokenizer(data, return_tensors="pt")["input_ids"]
+        output = self.label_classifier(inputs).logits
+        output = torch.argmax(output, dim=-1).item()
+
+        return self.label_dict[output] + " " + data
+
+    def change_persona(self, data: str) -> str:
+        data = self.persona_tokenizer(data, return_tensors="pt")["input_ids"]
+        output = self.persona_convertor(data).logits
+        output = torch.argmax(output, dim=-1)
+        output_text = self.persona_tokenizer.decode(output[0], skip_special_tokens=True)
+        return output_text
 
 
 def getInvalidPersonaData():
