@@ -9,9 +9,9 @@ import os
 
 
 def prepare_data(using_device):
-    scr_input_dim = 0
-    trg_input_dim = 0
-    tokenizer = MBartTokenizerFast.from_pretrained("facebook/mbart-large-50", src_lang="en_XX", tgt_lang="ko_KR")
+    scr_input_dim = 80  # 78
+    trg_input_dim = 85  # 82
+    tokenizer = MBartTokenizerFast.from_pretrained("facebook/mbart-large-cc25", src_lang="en_XX", tgt_lang="ko_KR")
 
     data = pd.DataFrame(columns=['번역문', '원문'])
     for file_name in os.listdir("../data/translate_en_to_ko_dataset"):
@@ -29,9 +29,9 @@ def prepare_data(using_device):
         for k, v in temp_data.items():
             encoded_dict[k] = v[0].to(using_device)
         with tokenizer.as_target_tokenizer():
-            encoded_dict['labels'] = tokenizer.batch_encode_plus(ko, max_length=trg_input_dim, padding="max_length", truncation=True,
-                                                                 return_tensors="pt").input_ids.to(using_device)
-        encoded_data.append(dict)
+            encoded_dict['labels'] = tokenizer(ko, max_length=trg_input_dim, padding="max_length",
+                                               truncation=True, return_tensors="pt").input_ids[0].to(using_device)
+        encoded_data.append(encoded_dict)
 
     train, val = train_test_split(encoded_data, train_size=0.7, random_state=7777)
     return train, val
@@ -40,7 +40,7 @@ def prepare_data(using_device):
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 epochs = 10
 batch_size = 32
-PREMODEL_NAME = "facebook/mbart-large-50"
+PREMODEL_NAME = "facebook/mbart-large-cc25"
 
 model = MBartForConditionalGeneration.from_pretrained(PREMODEL_NAME, num_labels=7).to(device)
 tokenizer = MBartTokenizerFast.from_pretrained(PREMODEL_NAME, src_lang="en_XX", tgt_lang="ko_KR")
