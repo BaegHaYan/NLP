@@ -38,11 +38,14 @@ class Dataset_encoder:
             data.to_csv("../data/"+file_name, sep="\t", encoding="UTF-8")
 
     def label_classification(self, data: str) -> str:
-        inputs = self.label_tokenizer(data, return_tensors="pt")["input_ids"]
-        output = self.label_classifier(inputs).logits
-        output = torch.argmax(output, dim=-1).item()
+        if re.match("\[.*]", data) is not None:
+            return data
+        else:
+            inputs = self.label_tokenizer(data, return_tensors="pt")["input_ids"]
+            output = self.label_classifier(inputs).logits
+            output = torch.argmax(output, dim=-1).item()
 
-        return self.label_dict[output] + " " + data
+            return self.label_dict[output] + " " + data
 
     def change_persona(self, data: str) -> str:
         data = self.persona_tokenizer(data, return_tensors="pt")["input_ids"]

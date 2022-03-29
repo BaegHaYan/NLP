@@ -1,8 +1,10 @@
+import torch
+from transformers import pipeline, MBartForConditionalGeneration, MBartTokenizerFast
 from sklearn.model_selection import train_test_split
-from transformers import pipeline
 from typing import List
 import pandas as pd
 import jsonlines
+import logging
 import json
 import yaml
 import os
@@ -10,15 +12,22 @@ import os
 
 class Dataset_combiner:
     def __init__(self):
-        self.en_to_ko = pipeline("translation_en_to_ko", model="../models/translation_en_to_ko/torch_model/pytorch_model.bin")
+        self.logger = logging.getLogger()
+        self.logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter())
+        self.logger.addHandler(handler)
+
         self.ru_to_en = pipeline("translation_ru_to_en", model="Helsinki-NLP/opus-mt-ru-en")
+        self.en_to_ko_model = MBartForConditionalGeneration.from_pretrained("")  # TODO
+        self.en_to_ko_tokenizer = MBartTokenizerFast.from_pretrained("facebook/mbart-large-50", src_lang="en_XX", tgt_lang="ko_KR")
 
         self.columns = ["D1", "R1", "D2", "R2", "D3", "R3", "D4", "R4", "D5", "R5"]
         self.data = pd.DataFrame(columns=self.columns)
         self.combine_raw_datasets()
 
     def combine_raw_datasets(self):
-        combine_functions = [self.processing_lovers_data,
+        combine_functions = [self.processing_additional_data,
                              self.processing_Chatbot_data,
                              self.processing_ConversationJSON_data,
                              self.processing_conversations_data,
@@ -29,24 +38,25 @@ class Dataset_combiner:
                              self.processing_TopicalChat_data,
                              self.processing_EmotionalConv_data]
         for func in combine_functions:
-            print('start ' + func.__name__)
+            self.logger.info('start ' + func.__name__)
             file_data = func()
             self.data = self.data.append(file_data, ignore_index=True)
-            print('ended ' + func.__name__)
+            self.logger.info('ended ' + func.__name__)
 
-        print('all of data num : ' + str(len(self.data)))
+        self.logger.info('all of data num : ' + str(len(self.data)))
         train, val = train_test_split(self.data, train_size=0.7)
         val, test = train_test_split(val, train_size=0.7)
-        print(f"train num : {len(train)}")
-        print(f"val num : {len(val)}")
-        print(f"test num : {len(test)}")
+        self.logger.info(f"train num : {len(train)}")
+        self.logger.info(f"val num : {len(val)}")
+        self.logger.info(f"test num : {len(test)}")
         train.to_csv("../data/combined_dataset/train.txt", sep="\t", na_rep="None", encoding="UTF-8")
         val.to_csv("../data/combined_dataset/val.txt", sep="\t", na_rep="None", encoding="UTF-8")
         test.to_csv("../data/combined_dataset/test.txt", sep="\t", na_rep="None", encoding="UTF-8")
-        print("combining datasets were ended")
+        self.logger.info("combining datasets were ended")
 
-    def processing_lovers_data(self) -> pd.DataFrame:
-        pass
+    def processing_additional_data(self) -> pd.DataFrame:
+        data = pd.read_csv("../data/raw_dataset/additional_handmade_dataset/persona_conversation.txt", names=self.columns[:2], sep="\t", encoding="949")
+        return data
 
     def processing_Chatbot_data(self) -> pd.DataFrame:
         raw_data = pd.read_csv("../data/raw_dataset/Chatbot/ChatbotData.csv", names=self.columns[:2]+["label"])
@@ -160,8 +170,11 @@ class Dataset_combiner:
         line = line + [None] * (len(self.columns) - len(line))
         return line
 
-    def translate(self, text: str, is_Ru: bool = False):
+    def translate(self, text: str, is_Ru: bool = False) -> str:
         if is_Ru:
-            text = self.ru_to_en(text)
-        text = self.en_to_ko(text)
-        return text[0]["translation_text"]
+            text = self.ru_to_en(text)[0]["translation_text"]
+        text = self.en_to_ko_tokenizer(text)["input_ids"]
+        output = self.en_to_ko_model(text).logits
+        output = torch.argmax(output, dim=-1)
+        output_text = self.en_to_ko_tokenizer.decode(output[0], skip_special_tokens=True)
+        return output_text
