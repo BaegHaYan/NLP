@@ -1,5 +1,5 @@
 import torch
-from transformers import pipeline, MBartForConditionalGeneration, MBartTokenizerFast
+from transformers import pipeline, BartForConditionalGeneration, MBartTokenizerFast
 from sklearn.model_selection import train_test_split
 from typing import List
 import pandas as pd
@@ -19,7 +19,7 @@ class Dataset_combiner:
         self.logger.addHandler(handler)
 
         self.ru_to_en = pipeline("translation_ru_to_en", model="Helsinki-NLP/opus-mt-ru-en")
-        self.en_to_ko_model = MBartForConditionalGeneration.from_pretrained("")  # TODO
+        self.en_to_ko_model = BartForConditionalGeneration.from_pretrained("../models/translator_en_to_ko/trainer")
         self.en_to_ko_tokenizer = MBartTokenizerFast.from_pretrained("facebook/mbart-large-50", src_lang="en_XX", tgt_lang="ko_KR")
 
         self.columns = ["D1", "R1", "D2", "R2", "D3", "R3", "D4", "R4", "D5", "R5"]

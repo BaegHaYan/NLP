@@ -1,4 +1,4 @@
-from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
+from transformers import MBartForConditionalGeneration, MBartTokenizerFast
 from transformers import Trainer, TrainingArguments, PrinterCallback
 from transformers.integrations import TensorBoardCallback
 from sklearn.model_selection import train_test_split
@@ -12,7 +12,7 @@ logger = logging.getLogger("logger")
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 PREMODEL_NAME = "facebook/mbart-large-cc25"
-TOKENIZER = MBart50TokenizerFast.from_pretrained(PREMODEL_NAME, src_lang="en_XX", tgt_lang="ko_KR")
+TOKENIZER = MBartTokenizerFast.from_pretrained(PREMODEL_NAME, src_lang="en_XX", tgt_lang="ko_KR")
 
 def prepare_data(using_device):
     scr_input_dim = 80  # 78
@@ -35,10 +35,10 @@ def prepare_data(using_device):
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 epochs = 10
-batch_size = 16
+batch_size = 8
 
 train, val = prepare_data(device)
-model = MBartForConditionalGeneration.from_pretrained(PREMODEL_NAME, num_labels=7).to(device)
+model = MBartForConditionalGeneration.from_pretrained(PREMODEL_NAME).to(device)
 
 log_dir = os.path.join('../../models/translator_en_to_ko/trainer/logs/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
 train_args = TrainingArguments(output_dir="../../models/translator_en_to_ko/trainer/output_dir/",
@@ -52,11 +52,11 @@ train_args = TrainingArguments(output_dir="../../models/translator_en_to_ko/trai
                                weight_decay=0.01,
                                load_best_model_at_end=True,
                                evaluation_strategy="epoch",
-                               # save_strategy="epoch",  # it makes error in pyCharm, but it prevents error in colab
+                               save_strategy="epoch"
                                )
 
 trainer = Trainer(model=model, args=train_args,
                   callbacks=[PrinterCallback(), TensorBoardCallback()],
                   train_dataset=train, eval_dataset=val)
 trainer.train()
-torch.save(model, "../../models/translator_en_to_ko/trainer/pytorch_model.bin")
+torch.save(model, "../models/translator_en_to_ko/trainer/last_model.bin")
