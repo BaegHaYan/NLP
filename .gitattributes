@@ -1,2 +1,6 @@
 9525d6f96682baa1f21538ea58d36263fe16a46345dd9637e3e28a4df2f9380f.ebe6e13ff204bebbffd4764cda3d5a97dc690a9c4110bde6d909ddc3ed5c4585 filter=lfs diff=lfs merge=lfs -text
 pytorch_model.bin filter=lfs diff=lfs merge=lfs -text
+rng_state.pth filter=lfs diff=lfs merge=lfs -text
+optimizer.pt filter=lfs diff=lfs merge=lfs -text
+best_model_state.pt filter=lfs diff=lfs merge=lfs -text
+embedding_model_state.pt filter=lfs diff=lfs merge=lfs -text
