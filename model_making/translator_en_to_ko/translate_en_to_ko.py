@@ -14,17 +14,17 @@ logger.addHandler(logging.StreamHandler())
 PREMODEL_NAME = "facebook/mbart-large-cc25"
 TOKENIZER = MBartTokenizerFast.from_pretrained(PREMODEL_NAME, src_lang="en_XX", tgt_lang="ko_KR")
 
-def prepare_data(using_device):
+def prepare_data():
     scr_input_dim = 80  # 78
     trg_input_dim = 85  # 82
     logger.info("starting prepare data")
     data = pd.read_csv("../../data/translate_en_to_ko_dataset/data.txt", sep="\t", encoding="utf-8", index_col=0)
     encoded_data = []
     encoded_en = TOKENIZER.batch_encode_plus(data["en"].to_list(), max_length=scr_input_dim, padding="max_length",
-                                             truncation=True, return_tensors="pt").to(using_device)
+                                             truncation=True, return_tensors="pt")
     with TOKENIZER.as_target_tokenizer():
         encoded_ko = TOKENIZER.batch_encode_plus(data["ko"].to_list(), max_length=trg_input_dim, padding="max_length", truncation=True,
-                                                 return_tensors="pt")["input_ids"].to(using_device)
+                                                 return_tensors="pt")["input_ids"]
     logger.info("finished tokenizing dataset")
     for i, (en_ids, en_attention, ko) in enumerate(zip(encoded_en["input_ids"], encoded_en["attention_mask"], encoded_ko)):
         encoded_data.append({"input_ids": en_ids, "attention_mask": en_attention, "labels": ko})
@@ -37,11 +37,11 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 epochs = 10
 batch_size = 8
 
-train, val = prepare_data(device)
+train, val = prepare_data()
 model = MBartForConditionalGeneration.from_pretrained(PREMODEL_NAME).to(device)
 
-log_dir = os.path.join('../../../models/translator_en_to_ko/trainer/logs/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-train_args = TrainingArguments(output_dir="../../../models/translator_en_to_ko/trainer/output_dir/",
+log_dir = os.path.join('../../models/translator_en_to_ko/trainer/logs/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+train_args = TrainingArguments(output_dir="../../models/translator_en_to_ko/trainer/output_dir/",
                                logging_dir=log_dir,
                                do_train=True,
                                do_eval=True,
@@ -59,4 +59,4 @@ trainer = Trainer(model=model, args=train_args,
                   callbacks=[PrinterCallback(), TensorBoardCallback()],
                   train_dataset=train, eval_dataset=val)
 trainer.train()
-torch.save(model, "../models/translator_en_to_ko/trainer/last_model.bin")
+torch.save(model, "../../models/translator_en_to_ko/trainer/last_model.bin")

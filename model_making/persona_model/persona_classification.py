@@ -2,16 +2,18 @@ import setuptools
 import torchmetrics
 from torch.utils.data import TensorDataset, DataLoader
 from torch.optim.lr_scheduler import SequentialLR, ConstantLR, ExponentialLR
-from transformers import GPT2TokenizerFast
+from transformers import PreTrainedTokenizerFast
+from typing import Optional, Union
+import os
 import torch
 import argparse
 import logging
 import pandas as pd
 
-class Persona_classification(torch.nn.Module):
+class Persona_classifier(torch.nn.Module):
     def __init__(self, hparams: argparse.Namespace):
-        super(Persona_classification, self).__init__()
-        self.tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer/GPT")
+        super(Persona_classifier, self).__init__()
+        self.tokenizer = PreTrainedTokenizerFast.from_pretrained(os.path.abspath("tokenizer/GPT"))
 
         self.input_dim = 30  # consider changing model to LSTM/CNN(input has short dim)
         self.embedding_dim = hparams.embedding_dim
@@ -48,18 +50,24 @@ class Persona_classification(torch.nn.Module):
         output = output.view(1, -1)
         output = torch.sum(output, dim=1)
         output = torch.sigmoid(output)
-        return output
+        return output  # TODO additional processing (return persona percentage of sentence)
 
     @staticmethod
-    def add_model_argments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def add_model_argments(parser: Optional[argparse.ArgumentParser], return_nameSpace: bool = False)\
+            -> Union[argparse.ArgumentParser, argparse.Namespace]:
+        if parser is None:
+            parser = argparse.ArgumentParser()
         parser.add_argument("--embedding-dim", type=int, default=960, dest="embedding_dim", help="embedding size")
         parser.add_argument("--hidden-size", type=int, default=786, dest="hidden_dim", help="hidden size")
         parser.add_argument("--attention-head", type=int, default=12, dest="nhead", help="num of attention heads")
         parser.add_argument("--num-layers", type=int, default=12, dest="num_layers", help="num of layers")
         parser.add_argument("--dim-feedforward", type=int, default=2048, dest="dim_feedforward", help="dim of feedforward")
-        return parser
+        if return_nameSpace:
+            return parser.parse_args()
+        else:
+            return parser
 
-def get_dataset(tokenizer: GPT2TokenizerFast, hparams: argparse.Namespace, logger: logging.Logger, device: str):
+def get_dataset(tokenizer: PreTrainedTokenizerFast, hparams: argparse.Namespace, logger: logging.Logger, device: str):
     input_dim = 30
     train_path = "../../data/persona_dataset/data1.txt"
     val_path = "../../data/persona_dataset/data1.txt"
@@ -96,7 +104,7 @@ if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     parser = argparse.ArgumentParser()
-    parser = Persona_classification.add_model_argments(parser)
+    parser = Persona_classifier.add_model_argments(parser)
     parser.add_argument("-e", type=int, default=100, dest="epochs", help="epochs")
     parser.add_argument("-b", type=int, default=32, dest="batch_size", help="batch_size")
     parser.add_argument("-lr", type=float, default=0.01, dest="lr", help="learning rate")
@@ -111,8 +119,8 @@ if __name__ == "__main__":
     handler.setFormatter(logging.Formatter())
     logger.addHandler(handler)
 
-    model = Persona_classification(hparams).to(device)
-    tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer/GPT")
+    model = Persona_classifier(hparams).to(device)
+    tokenizer = PreTrainedTokenizerFast.from_pretrained("../../tokenizer/GPT")
     accuracy = torchmetrics.Accuracy().to(device)
     loss_func = torch.nn.BCELoss().to(device)
     optim = torch.optim.AdamW(model.parameters(), lr=hparams.lr)
