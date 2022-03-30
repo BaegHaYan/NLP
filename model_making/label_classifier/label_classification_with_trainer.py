@@ -28,9 +28,9 @@ def getDataset(isTrain: bool, using_device: str):
     torch.cuda.manual_seed(RANDOM_SEED)
 
     if isTrain:
-        data_path = "../data/label_classification_dataset/train/train_data1.txt"
+        data_path = "../../data/label_classification_dataset/train/train_data1.txt"
     else:
-        data_path = "../data/label_classification_dataset/val/val_data1.txt"
+        data_path = "../../data/label_classification_dataset/val/val_data1.txt"
 
     encoded_data = []
     data = pd.read_csv(data_path, sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
@@ -59,8 +59,8 @@ model = ElectraForSequenceClassification.from_pretrained(PREMODEL_NAME, num_labe
 tokenizer = ElectraTokenizerFast.from_pretrained(PREMODEL_NAME)
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
-log_dir = os.path.join('../models/label_classifier/trainer/log/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-train_args = TrainingArguments(output_dir="../models/label_classifier/trainer/output_dir/",
+log_dir = os.path.join('../../models/label_classifier/trainer/log/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+train_args = TrainingArguments(output_dir="../../models/label_classifier/trainer/output_dir/",
                                logging_dir=log_dir,
                                do_train=True,
                                do_eval=True,
@@ -79,4 +79,4 @@ trainer = Trainer(model=model, args=train_args, data_collator=data_collator, com
                   train_dataset=getDataset(isTrain=True, using_device=device),
                   eval_dataset=getDataset(isTrain=False, using_device=device))
 trainer.train()
-torch.save(model, "../models/label_classifier/trainer/pytorch_model.bin")
+torch.save(model, "../../models/label_classifier/trainer/pytorch_model.bin")

@@ -19,7 +19,7 @@ class Dataset_combiner:
         self.logger.addHandler(handler)
 
         self.ru_to_en = pipeline("translation_ru_to_en", model="Helsinki-NLP/opus-mt-ru-en")
-        self.en_to_ko_model = BartForConditionalGeneration.from_pretrained("../models/translator_en_to_ko/trainer")
+        self.en_to_ko_model = BartForConditionalGeneration.from_pretrained("../../models/translator_en_to_ko/trainer")
         self.en_to_ko_tokenizer = MBartTokenizerFast.from_pretrained("facebook/mbart-large-50", src_lang="en_XX", tgt_lang="ko_KR")
 
         self.columns = ["D1", "R1", "D2", "R2", "D3", "R3", "D4", "R4", "D5", "R5"]
@@ -55,17 +55,17 @@ class Dataset_combiner:
         self.logger.info("combining datasets were ended")
 
     def processing_additional_data(self) -> pd.DataFrame:
-        data = pd.read_csv("../data/raw_dataset/additional_handmade_dataset/persona_conversation.txt", names=self.columns[:2], sep="\t", encoding="949")
+        data = pd.read_csv("../../data/raw_dataset/additional_handmade_dataset/persona_conversation.txt", names=self.columns[:2], sep="\t", encoding="949")
         return data
 
     def processing_Chatbot_data(self) -> pd.DataFrame:
-        raw_data = pd.read_csv("../data/raw_dataset/Chatbot/ChatbotData.csv", names=self.columns[:2]+["label"])
+        raw_data = pd.read_csv("../../data/raw_dataset/Chatbot/ChatbotData.csv", names=self.columns[:2] + ["label"])
         data = raw_data.iloc[1:].drop(["label"], axis=1)
         return data
 
     def processing_ConversationJSON_data(self) -> pd.DataFrame:
         data = pd.DataFrame(columns=self.columns)
-        raw_data = json.load(open("../data/raw_dataset/Conversation_JSON/conversation.json", "r+", encoding="UTF-8"))
+        raw_data = json.load(open("../../data/raw_dataset/Conversation_JSON/conversation.json", "r+", encoding="UTF-8"))
 
         for dialog in raw_data["conversations"]:
             dialog = self.process_line(dialog)
@@ -74,7 +74,7 @@ class Dataset_combiner:
 
     def processing_conversations_data(self) -> pd.DataFrame:
         data = pd.DataFrame(columns=self.columns)
-        raw_data = pd.read_csv("../data/raw_dataset/conversations/dialogs.txt", sep="\t", encoding="UTF-8", names=["S1", "S2"])
+        raw_data = pd.read_csv("../../data/raw_dataset/conversations/dialogs.txt", sep="\t", encoding="UTF-8", names=["S1", "S2"])
 
         line = []
         before_s2 = None
@@ -94,10 +94,10 @@ class Dataset_combiner:
 
     def processing_cornell_movie_data(self) -> pd.DataFrame:
         data = pd.DataFrame(columns=self.columns)
-        raw_data = pd.read_csv("../data/raw_dataset/cornell_movie_dialogs_corpus/movie_conversations.txt",
+        raw_data = pd.read_csv("../../data/raw_dataset/cornell_movie_dialogs_corpus/movie_conversations.txt",
                                names=["charID1", "charID2", "movieID", "conv"], sep="+++$+++", encoding="UTF-8")["conv"]
         line_dict = dict([(line_id, self.translate(line)) for _, (line_id, _, _, _, line) in
-                          pd.read_csv("../data/raw_dataset/cornell_movie_dialogs_corpus/movie_lines.txt", sep="+++$+++", encoding="UTF-8")])
+                          pd.read_csv("../../data/raw_dataset/cornell_movie_dialogs_corpus/movie_lines.txt", sep="+++$+++", encoding="UTF-8")])
         for _, conv_list in raw_data.items():
             line = [line_dict[lineID] for lineID in conv_list]
             line = self.process_line(line)
@@ -106,7 +106,7 @@ class Dataset_combiner:
 
     def processing_Depression_data(self) -> pd.DataFrame:
         data = pd.DataFrame(columns=self.columns)
-        raw_data = yaml.safe_load(open("../data/raw_dataset/Depression/depression.yml", "r+", encoding="UTF-8"))['conversations']
+        raw_data = yaml.safe_load(open("../../data/raw_dataset/Depression/depression.yml", "r+", encoding="UTF-8"))['conversations']
         for lines in raw_data:
             question = self.translate(lines[0])
             for answer in lines[1:]:
@@ -115,7 +115,7 @@ class Dataset_combiner:
 
     def processing_HumanConversation_data(self) -> pd.DataFrame:
         data = pd.DataFrame(columns=self.columns)
-        raw_data = open("../data/raw_dataset/HumanConversation/human_chat.txt", encoding="UTF-8").readlines()
+        raw_data = open("../../data/raw_dataset/HumanConversation/human_chat.txt", encoding="UTF-8").readlines()
         line = []
         sep_sent = raw_data[0]
         for sent in raw_data:
@@ -127,7 +127,7 @@ class Dataset_combiner:
 
     def processing_TOQ_Russian_data(self) -> pd.DataFrame:
         data = pd.DataFrame(columns=self.columns)
-        raw_data = jsonlines.open("../data/raw_dataset/ThousandsOfQuestions_Russian/data.jsonl")
+        raw_data = jsonlines.open("../../data/raw_dataset/ThousandsOfQuestions_Russian/data.jsonl")
         for conv in raw_data:
             question = self.translate(conv['question'], is_Ru=True)
             for answer in conv['answers']:
@@ -136,7 +136,7 @@ class Dataset_combiner:
 
     def processing_TopicalChat_data(self) -> pd.DataFrame:
         data = pd.DataFrame(columns=self.columns)
-        file_names = os.listdir("../data/raw_dataset/Topical_Chat")
+        file_names = os.listdir("../../data/raw_dataset/Topical_Chat")
         for file_name in file_names:
             for raw_data in json.load(open("../data/raw_dataset/Topical_Chat/"+file_name, "r+", encoding="UTF-8")):
                 lines = []
@@ -147,7 +147,7 @@ class Dataset_combiner:
 
     def processing_EmotionalConv_data(self) -> pd.DataFrame:
         data = pd.DataFrame(columns=self.columns)
-        file_names = os.listdir("../data/raw_dataset/감성대화")
+        file_names = os.listdir("../../data/raw_dataset/감성대화")
         is_passing = False
         for file_name in file_names:
             for conv in json.load(open("../data/raw_dataset/감성대화/" + file_name, "r+", encoding="UTF-8")):

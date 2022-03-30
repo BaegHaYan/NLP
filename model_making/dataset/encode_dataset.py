@@ -10,11 +10,12 @@ import re
 class Dataset_encoder:
     def __init__(self):
         self.label_dict = {0: '[HAPPY]', 1: '[PANIC]', 2: '[ANGRY]', 3: '[UNSTABLE]', 4: '[HURT]', 5: '[SAD]', 6: '[NEUTRAL]'}
-        self.label_classifier = ElectraForSequenceClassification.from_pretrained("../models/label_classifier/trainer")
-        self.label_tokenizer = ElectraTokenizerFast.from_pretrained("../tokenizer/GPT")
-        self.persona_convertor = BartForConditionalGeneration.from_pretrained("../models/persona_converter/trainer")
-        self.persona_tokenizer = BartTokenizerFast.from_pretrained("../tokenizer/koBart")
-        self.data_path = "../data/combined_dataset/"
+        self.label_classifier = ElectraForSequenceClassification.from_pretrained(
+            "../../models/label_classifier/trainer")
+        self.label_tokenizer = ElectraTokenizerFast.from_pretrained("../../tokenizer/GPT")
+        self.persona_convertor = BartForConditionalGeneration.from_pretrained("../../models/persona_converter/trainer")
+        self.persona_tokenizer = BartTokenizerFast.from_pretrained("../../tokenizer/koBart")
+        self.data_path = "../../data/combined_dataset/"
         self.encoding_dataset()
 
     def encoding_dataset(self):
@@ -62,8 +63,8 @@ def getInvalidPersonaData():
     handler.setFormatter(logging.Formatter(fmt=None, style='$'))
     logger.addHandler(handler)
 
-    train = pd.read_csv("../data/label_classification_dataset/train/train_data1.txt", sep="\t", encoding="949")
-    val = pd.read_csv("../data/label_classification_dataset/val/val_data1.txt", sep="\t", encoding="949")
+    train = pd.read_csv("../../data/label_classification_dataset/train/train_data1.txt", sep="\t", encoding="949")
+    val = pd.read_csv("../../data/label_classification_dataset/val/val_data1.txt", sep="\t", encoding="949")
     data = train.append(val)
     invalidPersona_list = ["니다", "세요", "였다", "요.", "요?", "요!"]
 
@@ -88,4 +89,4 @@ def getInvalidPersonaData():
                     invalid_data.append(line)
     invalid_data.extend(data["S1"].tail().to_list())
     logger.info(f"total num of data : {len(invalid_data)}")
-    pd.Series(invalid_data).to_csv("../data/persona_dataset/source_data.txt", sep="\t", encoding="UTF-8")
+    pd.Series(invalid_data).to_csv("../../data/persona_dataset/source_data.txt", sep="\t", encoding="UTF-8")

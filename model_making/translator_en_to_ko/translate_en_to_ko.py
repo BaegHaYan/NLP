@@ -18,7 +18,7 @@ def prepare_data(using_device):
     scr_input_dim = 80  # 78
     trg_input_dim = 85  # 82
     logger.info("starting prepare data")
-    data = pd.read_csv("../data/translate_en_to_ko_dataset/data.txt", sep="\t", encoding="utf-8", index_col=0)
+    data = pd.read_csv("../../data/translate_en_to_ko_dataset/data.txt", sep="\t", encoding="utf-8", index_col=0)
     encoded_data = []
     encoded_en = TOKENIZER.batch_encode_plus(data["en"].to_list(), max_length=scr_input_dim, padding="max_length",
                                              truncation=True, return_tensors="pt").to(using_device)
@@ -40,8 +40,8 @@ batch_size = 8
 train, val = prepare_data(device)
 model = MBartForConditionalGeneration.from_pretrained(PREMODEL_NAME).to(device)
 
-log_dir = os.path.join('../../models/translator_en_to_ko/trainer/logs/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-train_args = TrainingArguments(output_dir="../../models/translator_en_to_ko/trainer/output_dir/",
+log_dir = os.path.join('../../../models/translator_en_to_ko/trainer/logs/', datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+train_args = TrainingArguments(output_dir="../../../models/translator_en_to_ko/trainer/output_dir/",
                                logging_dir=log_dir,
                                do_train=True,
                                do_eval=True,

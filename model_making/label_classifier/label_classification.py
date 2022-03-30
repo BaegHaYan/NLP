@@ -73,7 +73,7 @@ class LabelClassifier(LightningModule):
         self.label_dict = {'[HAPPY]': 0, '[PANIC]': 1, '[ANGRY]': 2, '[UNSTABLE]': 3, '[HURT]': 4, '[SAD]': 5, '[NEUTRAL]': 6}
         self.train_set = None  # 3366
         self.val_set = None  # 436
-        self.tokenizer = GPT2TokenizerFast.from_pretrained("../tokenizer/GPT")
+        self.tokenizer = GPT2TokenizerFast.from_pretrained("../../tokenizer/GPT")
         self.pad_token_id = self.tokenizer.pad_token_id
 
         self.embedding_layer = torch.nn.Sequential(
@@ -141,8 +141,8 @@ class LabelClassifier(LightningModule):
         return torch.sum(output == labels) / output.__len__() * 100  # %(Precentage)
 
     def prepare_data(self):
-        raw_train = pd.read_csv("../data/label_classification_dataset/train/train_data1.txt", sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
-        raw_val = pd.read_csv("../data/label_classification_dataset/val/val_data1.txt", sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
+        raw_train = pd.read_csv("../../data/label_classification_dataset/train/train_data1.txt", sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
+        raw_val = pd.read_csv("../../data/label_classification_dataset/val/val_data1.txt", sep="\t", encoding="949").drop(["R1", "R2", "R3"], axis=1)
 
         train_x = []
         train_Y = []
@@ -226,7 +226,8 @@ class LabelClassifier(LightningModule):
 
 parser = LabelClassifier.set_hparam(parser)
 args = parser.parse_args()
-trainer = Trainer(max_epochs=args.epochs, gpus=torch.cuda.device_count(), logger=TensorBoardLogger("../models/label_classifier/tensorboardLog/"))
+trainer = Trainer(max_epochs=args.epochs, gpus=torch.cuda.device_count(), logger=TensorBoardLogger(
+    "../../models/label_classifier/tensorboardLog/"))
 model = LabelClassifier(args)
 trainer.fit(model)
 torch.save(model.state_dict(), "../models/label_classifier/model_state/model_state.pt")
