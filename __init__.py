@@ -1,6 +1,6 @@
 import setuptools
 from transformers import GPT2LMHeadModel, BartForConditionalGeneration, PreTrainedTokenizerFast
-from HaYan_NLP.model_making.persona_model.persona_classification import Persona_classifier
+from .model_making.persona_model.persona_classification import Persona_classifier
 import numpy as np
 import torch
 

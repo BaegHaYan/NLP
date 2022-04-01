@@ -1,5 +1,5 @@
 from typing import List, Dict, Union
-from HaYan_NLP import *
+from . import *
 
 def chat_with_bot(
         user_text: str,
@@ -9,10 +9,20 @@ def chat_with_bot(
     """
     chat with bot
 
+    Examples
+         >>> example_text = "잘 지냈어?"
+         >>> example_emotion_id = 0  # [HAPPY]
+         >>> example_past_convs = ["['NATURAL']안녕?", "안녕."]
+         >>> example_QnA = {"넌 몇살이야?": "난 올해 스무살이야."}
+
+         >>> bot_response = chat_with_bot(example_text, example_emotion_id, example_past_convs, example_QnA)
+         >>> print(bot_response)  # 응. 잘 지냈어. (can be different)
+
+
     Args:
         user_text : the user spoken text.
         user_emotion_id : the Id for emotion of user. following the label_dict.
-        past_convs : the List of past convs. it has to order by time.
+        past_convs : the List including past convs. it has to order by time.
         DB_QnA : the Dict including prepared Questions(Key) and Answers(Value).
     """
 
