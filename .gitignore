@@ -7,5 +7,5 @@ plan.md
 # python
 __pycache__
 # LFS model files(LFS data quote)
-./models/embedding_model/embedding_model_state.pt
-./models/persona_classifier/best_model_state.pt
+embedding_model_state.pt
+best_model_state.pt
