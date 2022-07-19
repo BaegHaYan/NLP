@@ -9,3 +9,4 @@ __pycache__
 # LFS model files(LFS data quote)
 embedding_model_state.pt
 best_model_state.pt
+pytorch_model.bin
